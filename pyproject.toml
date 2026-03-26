@@ -1,0 +1,22 @@
+[project]
+name = "sakana-mcp"
+version = "0.1.0"
+description = "MCP server wrapping Sakana AI Scientist v2 for autonomous research loops"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastmcp>=3.1.0",
+  "pydantic>=2.7",
+  "pyyaml>=6.0.1",
+]
+
+[project.scripts]
+sakana-mcp = "sakana_mcp.server:main"
+
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+

@@ -1,0 +1,14 @@
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+WORKDIR /workspace
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y python3 python3-pip git && rm -rf /var/lib/apt/lists/*
+
+COPY vendor/ai-scientist-v2/requirements.txt /tmp/ai-scientist-requirements.txt
+RUN python3 -m pip install --upgrade pip && python3 -m pip install -r /tmp/ai-scientist-requirements.txt
+
+CMD ["python3", "-V"]
+

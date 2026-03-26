@@ -1,0 +1,37 @@
+services:
+  sakana-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: sakana-mcp-server
+    working_dir: /workspace
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      S2_API_KEY: ${S2_API_KEY}
+      RESEARCH_VAULT_PATH: /workspace/research_vault
+      AI_SCIENTIST_V2_PATH: /workspace/vendor/ai-scientist-v2
+    volumes:
+      - ./:/workspace
+    command: ["python", "-m", "sakana_mcp.server"]
+
+  scientist-executor:
+    build:
+      context: .
+      dockerfile: Dockerfile.executor
+    container_name: sakana-mcp-executor
+    working_dir: /workspace/vendor/ai-scientist-v2
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      S2_API_KEY: ${S2_API_KEY}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./:/workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: ["python", "-V"]
+

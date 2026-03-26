@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / frontend
+webapp/frontend/node_modules/
+webapp/frontend/dist/
+
+# Local artifacts and runtime state
+research_vault/
+webapp/.env
+webapp/backend/.env
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Ignore external cloned upstream not owned by this repo
+vendor/ai-scientist-v2/
+
