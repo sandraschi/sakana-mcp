@@ -4,8 +4,8 @@ Local dashboard for running and inspecting autonomous research loops.
 
 ### Ports (mandatory)
 
-- Frontend (Vite): `10720`
-- Backend (FastAPI): `10721`
+- Frontend (Vite): `10862`
+- Backend (FastAPI): `10863`
 
 ### Start
 

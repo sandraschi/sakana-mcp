@@ -9,6 +9,9 @@ MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research dir
 - `docs/architecture/README.md`: system architecture and component boundaries
 - `docs/researcher/README.md`: researcher-facing workflow (ideate -> execute -> status -> review)
 - `docs/operations/README.md`: Docker, safety model, runbooks, and troubleshooting
+- `research_library/README.md`: sample research task catalog
+- `prompts/README.md`: reusable prompt templates
+- `skills/FASTMCP_3_1_SKILL.md`: FastMCP 3.1 operator skill card
 
 ## Core Guarantees
 
@@ -22,6 +25,18 @@ MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research dir
 - `research_execute`: run experiment manager in Docker with `num_workers` and `max_debug_depth`
 - `research_status`: summarize buggy/non-buggy tree nodes from run artifacts
 - `research_review`: run VLM figure/caption/reference review on a produced PDF
+- `research_library`: browse built-in + custom sample research missions
+- `research_workflow_plan`: generate guided agentic step plan for a selected task
+
+## Research Warehousing
+
+All major events are appended to warehouse manifests under:
+
+- `research_vault/warehouse/manifests/*.jsonl`
+
+Warehouse directories are auto-created under `research_vault/warehouse`:
+
+- `runs`, `reviews`, `manuscripts`, `datasets`, `manifests`, `exports`
 
 ## Environment Variables
 

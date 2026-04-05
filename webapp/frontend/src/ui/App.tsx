@@ -8,6 +8,7 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { VaultPage } from "./pages/VaultPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { LogsPage } from "./pages/LogsPage";
+import { LibraryPage } from "./pages/LibraryPage";
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
         <Route path="/status" element={<StatusPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/vault" element={<VaultPage />} />
+        <Route path="/library" element={<LibraryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/logs" element={<LogsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

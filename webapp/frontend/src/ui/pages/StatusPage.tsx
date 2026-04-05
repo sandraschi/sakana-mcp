@@ -5,6 +5,14 @@ import { apiGet } from "../utils/api";
 type Status = {
   ok: boolean;
   status: string;
+  runtime: { mode: "live" | "fallback"; mock: boolean; reason: string };
+  docker: {
+    docker_cli_available: boolean;
+    docker_daemon_reachable: boolean;
+    compose_file_exists: boolean;
+    required_services: string[];
+    service_status: Record<string, { present: boolean; running: boolean; state: string }>;
+  };
   tree_health: { good_nodes: number; buggy_nodes: number; ratio_good_to_buggy: number | null };
   stages: Array<{
     stage: string;
@@ -34,6 +42,10 @@ export function StatusPage() {
         ) : (
           <div className="space-y-3">
             <div className="text-xs text-slate-300">vault: {q.data?.research_vault}</div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-2 text-xs text-slate-300">
+              mode: {q.data?.runtime.mode === "live" ? "LIVE" : "FALLBACK [MOCK]"} -{" "}
+              {q.data?.runtime.reason}
+            </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="text-slate-300">good</div>
@@ -57,7 +69,26 @@ export function StatusPage() {
         )}
       </Card>
 
-      <Card title="Stages" subtitle="Derived from stage_progress.json" className="lg:col-span-3">
+      <Card title="Stages + Docker" subtitle="Tree and container readiness" className="lg:col-span-3">
+        <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+            docker cli: {q.data?.docker.docker_cli_available ? "installed" : "missing"}
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+            daemon: {q.data?.docker.docker_daemon_reachable ? "reachable" : "unreachable"}
+          </div>
+        </div>
+        <div className="mb-3 space-y-2">
+          {(q.data?.docker.required_services ?? []).map((name) => {
+            const info = q.data?.docker.service_status?.[name];
+            return (
+              <div key={name} className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+                <span className="font-semibold">{name}</span>:{" "}
+                {info?.present ? (info.running ? "running" : `not running (${info.state})`) : "not created"}
+              </div>
+            );
+          })}
+        </div>
         {!q.data?.stages?.length ? (
           <div className="text-sm text-slate-300">
             No stage progress found yet. Run Execute first.

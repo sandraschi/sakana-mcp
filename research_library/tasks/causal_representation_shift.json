@@ -1,0 +1,14 @@
+{
+  "task_id": "causal_representation_shift",
+  "title": "Causal representation under shift",
+  "domain": "machine-learning",
+  "difficulty": "advanced",
+  "summary": "Evaluate whether causally informed representations improve robustness under synthetic shift.",
+  "success_criteria": [
+    "At least two shift scenarios tested",
+    "Baseline and causal variant compared",
+    "Error decomposition reported"
+  ],
+  "starter_prompt": "Investigate representations that separate stable causal factors from spurious correlations."
+}
+

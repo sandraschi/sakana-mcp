@@ -10,6 +10,8 @@ from typing import Any
 from fastmcp import FastMCP
 from fastmcp.context import Context
 import yaml
+from sakana_mcp.library import SAMPLE_TASKS, load_custom_tasks, task_to_dict
+from sakana_mcp.warehouse import append_manifest, ensure_warehouse
 
 
 def _env_required(name: str) -> str:
@@ -80,6 +82,10 @@ def _fallback_hypotheses() -> list[dict[str, str]]:
 
 def _default_ideas_path(vault: Path) -> Path:
     return vault / "default_workshop.json"
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def _prepare_bfts_config(
@@ -264,6 +270,11 @@ async def research_ideate(
         ideation_record["error"] = ideation_error
 
     (vault / "ideation_last.json").write_text(json.dumps(ideation_record, indent=2), encoding="utf-8")
+    manifest = append_manifest(
+        vault,
+        "ideation",
+        {"mode": ideation_mode, "count": len(hypotheses), "codebase_hint": codebase_hint},
+    )
 
     return {
         "success": True,
@@ -275,6 +286,7 @@ async def research_ideate(
         },
         "research_vault": str(vault),
         "ai_scientist_v2_path": str(vendor),
+        "warehouse_manifest": str(manifest),
         "ideation_error": ideation_error,
         "recommendations": [
             "Set AI_SCIENTIST_V2_PATH if vendor path differs from ./vendor/ai-scientist-v2.",
@@ -387,6 +399,17 @@ async def research_execute(
     stderr_path = vault / "execute_last_stderr.log"
     stdout_path.write_text(completed.stdout or "", encoding="utf-8")
     stderr_path.write_text(completed.stderr or "", encoding="utf-8")
+    manifest = append_manifest(
+        vault,
+        "execution",
+        {
+            "ok": completed.returncode == 0,
+            "return_code": completed.returncode,
+            "num_workers": num_workers,
+            "max_debug_depth": max_debug_depth,
+            "ideas_file": str(selected_ideas),
+        },
+    )
 
     await ctx.report_progress(4, 4, "Execution finished")
     return {
@@ -403,6 +426,7 @@ async def research_execute(
             "stdout": str(stdout_path),
             "stderr": str(stderr_path),
         },
+        "warehouse_manifest": str(manifest),
         "message": (
             "Experiment execution completed in Docker."
             if completed.returncode == 0
@@ -465,13 +489,84 @@ async def research_review(
 
     out_path = vault / f"{review_pdf.stem}.review_img_cap_ref.json"
     out_path.write_text(json.dumps(review_payload, indent=2), encoding="utf-8")
+    manifest = append_manifest(
+        vault,
+        "review",
+        {"pdf_path": str(review_pdf), "figures_reviewed": len(review_payload), "model": client_model},
+    )
     await ctx.report_progress(3, 3, "Review artifacts saved")
     return {
         "success": True,
         "model": client_model,
         "pdf_path": str(review_pdf),
         "review_path": str(out_path),
+        "warehouse_manifest": str(manifest),
         "figures_reviewed": len(review_payload),
+    }
+
+
+@mcp.tool()
+async def research_library(ctx: Context, *, domain: str | None = None) -> dict[str, Any]:
+    """RESEARCH_LIBRARY — List sample and custom research tasks."""
+    _ = ctx
+    root = _repo_root()
+    builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
+    custom = load_custom_tasks(root)
+    merged = builtins + custom
+    if domain:
+        merged = [item for item in merged if str(item.get("domain", "")).lower() == domain.lower()]
+    return {
+        "success": True,
+        "count": len(merged),
+        "tasks": merged,
+        "domains": sorted({str(item.get("domain", "unknown")) for item in merged}),
+    }
+
+
+@mcp.tool()
+async def research_workflow_plan(ctx: Context, *, task_id: str, num_workers: int = 3) -> dict[str, Any]:
+    """RESEARCH_WORKFLOW_PLAN — Build a guided agentic workflow plan for a task."""
+    _ = ctx
+    builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
+    all_tasks = builtins + load_custom_tasks(_repo_root())
+    selected = next((item for item in all_tasks if item.get("task_id") == task_id), None)
+    if not selected:
+        return {
+            "success": False,
+            "error": f"Unknown task_id: {task_id}",
+            "recovery_options": ["Call research_library() to inspect available task_ids."],
+        }
+
+    plan = [
+        {
+            "step": 1,
+            "tool": "research_ideate",
+            "args": {"codebase_hint": selected.get("starter_prompt"), "max_num_generations": 5},
+            "goal": "Generate candidate hypotheses aligned with the selected task.",
+        },
+        {
+            "step": 2,
+            "tool": "research_execute",
+            "args": {"num_workers": num_workers, "max_debug_depth": 3},
+            "goal": "Run experiment manager in Docker sandbox.",
+        },
+        {
+            "step": 3,
+            "tool": "research_status",
+            "args": {},
+            "goal": "Track buggy/non-buggy tree evolution and stage progression.",
+        },
+        {
+            "step": 4,
+            "tool": "research_review",
+            "args": {"pdf_path": "<path-to-paper.pdf>"},
+            "goal": "Review figure-caption-text alignment and capture revision directives.",
+        },
+    ]
+    return {
+        "success": True,
+        "task": selected,
+        "workflow_plan": plan,
     }
 
 
@@ -480,6 +575,7 @@ def main() -> None:
     # (GEMINI_API_KEY and S2_API_KEY are required for later stages, not ideation stub.)
     _ = os.getenv("GEMINI_API_KEY")
     _ = os.getenv("S2_API_KEY")
+    ensure_warehouse(_research_vault_path())
 
     mcp.run()
 

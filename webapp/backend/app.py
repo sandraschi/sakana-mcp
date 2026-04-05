@@ -90,11 +90,87 @@ def _summarize_stage_progress(vault: Path) -> list[dict[str, Any]]:
     return summaries
 
 
+def _docker_diagnostics() -> dict[str, Any]:
+    compose_path = _repo_root() / "docker-compose.yml"
+    services = ["sakana-mcp", "scientist-executor"]
+    diag: dict[str, Any] = {
+        "required_services": services,
+        "docker_cli_available": False,
+        "docker_daemon_reachable": False,
+        "compose_file_exists": compose_path.exists(),
+        "service_status": {name: {"present": False, "running": False, "state": "unknown"} for name in services},
+    }
+
+    try:
+        subprocess.run(["docker", "--version"], capture_output=True, text=True, check=True)
+        diag["docker_cli_available"] = True
+    except Exception:
+        return diag
+
+    try:
+        subprocess.run(["docker", "info"], capture_output=True, text=True, check=True)
+        diag["docker_daemon_reachable"] = True
+    except Exception:
+        return diag
+
+    if not compose_path.exists():
+        return diag
+
+    try:
+        ps = subprocess.run(
+            ["docker", "compose", "-f", str(compose_path), "ps", "--format", "json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        lines = [line.strip() for line in (ps.stdout or "").splitlines() if line.strip()]
+        entries: list[dict[str, Any]] = []
+        for line in lines:
+            try:
+                parsed = json.loads(line)
+                if isinstance(parsed, dict):
+                    entries.append(parsed)
+                elif isinstance(parsed, list):
+                    entries.extend([item for item in parsed if isinstance(item, dict)])
+            except Exception:
+                continue
+
+        by_name = {str(item.get("Service", "")): item for item in entries}
+        for name in services:
+            entry = by_name.get(name)
+            if not entry:
+                continue
+            state = str(entry.get("State", "unknown")).lower()
+            diag["service_status"][name] = {
+                "present": True,
+                "running": state == "running",
+                "state": state,
+            }
+    except Exception:
+        pass
+
+    return diag
+
+
+def _runtime_mode(vault: Path) -> dict[str, Any]:
+    ideation_last = vault / "ideation_last.json"
+    if not ideation_last.exists():
+        return {"mode": "fallback", "mock": True, "reason": "No ideation artifact found yet"}
+    payload = _safe_load_json(ideation_last)
+    mode = str(payload.get("mode", "fallback")).lower()
+    is_live = mode == "ai_scientist_v2"
+    return {
+        "mode": "live" if is_live else "fallback",
+        "mock": not is_live,
+        "reason": "[MOCK] Fallback ideation active" if not is_live else "Live AI-Scientist ideation",
+    }
+
+
 app = FastAPI(title="sakana-mcp webapp backend", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:10720", "http://localhost:10720"],
+    allow_origins=["http://127.0.0.1:10862", "http://localhost:10862"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,14 +196,58 @@ class ReviewRequest(BaseModel):
     pdf_path: str
     model: str = "gpt-4o-2024-11-20"
 
+SAMPLE_TASKS: list[dict[str, Any]] = [
+    {
+        "task_id": "ml_ablation_robustness",
+        "title": "Ablation-driven robustness analysis",
+        "domain": "machine-learning",
+        "difficulty": "intermediate",
+        "summary": "Identify high-leverage components under shift/noise.",
+        "success_criteria": [
+            "At least 3 ablation variants evaluated",
+            "One robustness metric reported",
+            "Hypothesis-to-result mapping in writeup",
+        ],
+        "starter_prompt": "Focus on robustness and ablation signal density.",
+    },
+    {
+        "task_id": "llm_debug_loop_efficiency",
+        "title": "Debug-loop efficiency profiling",
+        "domain": "agent-systems",
+        "difficulty": "intermediate",
+        "summary": "Quantify whether deeper debug loops improve outcomes or only cost.",
+        "success_criteria": [
+            "Multiple debug-depth settings compared",
+            "Runtime and success rates measured",
+            "Recommended operating point justified",
+        ],
+        "starter_prompt": "Benchmark trade-offs of max_debug_depth settings.",
+    },
+]
+
+def _load_custom_tasks() -> list[dict[str, Any]]:
+    lib_dir = _repo_root() / "research_library" / "tasks"
+    if not lib_dir.exists():
+        return []
+    tasks: list[dict[str, Any]] = []
+    for item in sorted(lib_dir.glob("*.json")):
+        try:
+            tasks.append(_safe_load_json(item))
+        except Exception:
+            continue
+    return tasks
+
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    vault = _research_vault_path()
     return {
         "ok": True,
         "repo_root": str(_repo_root()),
-        "research_vault": str(_research_vault_path()),
+        "research_vault": str(vault),
         "ai_scientist_v2": str(_vendor_root()),
+        "runtime": _runtime_mode(vault),
+        "docker": _docker_diagnostics(),
     }
 
 
@@ -297,14 +417,17 @@ def status() -> dict[str, Any]:
     stages = _summarize_stage_progress(vault)
     total_buggy = sum(int(s.get("buggy_nodes", 0)) for s in stages)
     total_good = sum(int(s.get("good_nodes", 0)) for s in stages)
+    runtime = _runtime_mode(vault)
     return {
         "ok": True,
         "status": "running_or_completed" if stages else "idle",
+        "runtime": runtime,
         "tree_health": {
             "good_nodes": total_good,
             "buggy_nodes": total_buggy,
             "ratio_good_to_buggy": (total_good / total_buggy) if total_buggy else None,
         },
+        "docker": _docker_diagnostics(),
         "stages": stages,
         "research_vault": str(vault),
     }
@@ -375,4 +498,52 @@ def vault_read(rel: str) -> dict[str, Any]:
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True, "path": str(target), "content": _safe_read_text(target)}
+
+
+@app.get("/api/library/tasks")
+def library_tasks(domain: str | None = None) -> dict[str, Any]:
+    tasks = SAMPLE_TASKS + _load_custom_tasks()
+    if domain:
+        tasks = [t for t in tasks if str(t.get("domain", "")).lower() == domain.lower()]
+    return {
+        "ok": True,
+        "count": len(tasks),
+        "domains": sorted({str(t.get("domain", "unknown")) for t in tasks}),
+        "tasks": tasks,
+    }
+
+
+@app.get("/api/workflow/plan")
+def workflow_plan(task_id: str, num_workers: int = 3) -> dict[str, Any]:
+    tasks = SAMPLE_TASKS + _load_custom_tasks()
+    selected = next((t for t in tasks if t.get("task_id") == task_id), None)
+    if not selected:
+        raise HTTPException(status_code=404, detail=f"Unknown task_id: {task_id}")
+    plan = [
+        {
+            "step": 1,
+            "tool": "research_ideate",
+            "args": {"codebase_hint": selected.get("starter_prompt"), "max_num_generations": 5},
+            "goal": "Generate hypotheses for the selected task profile",
+        },
+        {
+            "step": 2,
+            "tool": "research_execute",
+            "args": {"num_workers": num_workers, "max_debug_depth": 3},
+            "goal": "Run sandboxed experiment manager",
+        },
+        {
+            "step": 3,
+            "tool": "research_status",
+            "args": {},
+            "goal": "Monitor buggy/non-buggy tree evolution",
+        },
+        {
+            "step": 4,
+            "tool": "research_review",
+            "args": {"pdf_path": "<path-to-paper.pdf>"},
+            "goal": "Run VLM review and package revision directives",
+        },
+    ]
+    return {"ok": True, "task": selected, "plan": plan}
 

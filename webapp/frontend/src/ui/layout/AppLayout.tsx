@@ -8,6 +8,7 @@ const NAV = [
   { to: "/execute", label: "Execute" },
   { to: "/status", label: "Status" },
   { to: "/review", label: "Review" },
+  { to: "/library", label: "Library" },
   { to: "/vault", label: "Vault" },
   { to: "/logs", label: "Logs" },
   { to: "/settings", label: "Settings" }
@@ -75,15 +76,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <header className="rounded-2xl border border-white/10 bg-slateGlass px-5 py-4 backdrop-blur-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-sm text-slate-300">Research Director Console</div>
+                <div className="text-sm text-slate-300">
+                  Research v2: plan ideas, run experiments, review papers
+                </div>
                 <div className="text-lg font-semibold tracking-wide">Sakana AI Scientist v2</div>
+                <div className="text-xs text-slate-400">
+                  For first-time users: this app guides full research loops from hypothesis to review.
+                </div>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-300">
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  Frontend: 10720
+                  Frontend: 10862
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  Backend: 10721
+                  Backend: 10863
                 </span>
               </div>
             </div>

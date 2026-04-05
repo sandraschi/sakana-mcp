@@ -60,10 +60,10 @@ export function SettingsPage() {
       <Card title="Ports" subtitle="Fleet-compliant allocation">
         <div className="space-y-2 text-sm text-slate-200">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-            Frontend: <span className="font-semibold">10720</span>
+            Frontend: <span className="font-semibold">10862</span>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-            Backend: <span className="font-semibold">10721</span>
+            Backend: <span className="font-semibold">10863</span>
           </div>
         </div>
       </Card>

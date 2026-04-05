@@ -8,6 +8,12 @@ This guide is for running autonomous research loops through MCP tools.
 2. Execute experiments
 3. Monitor tree health
 4. Review generated manuscript visuals
+5. Warehouse and index outputs
+
+## Start from the task library
+
+Use `research_library` (or webapp Library page) to choose a pre-scoped task.
+Then call `research_workflow_plan` for a guided agentic plan you can execute step-by-step.
 
 ## Step 1: Ideation
 
@@ -58,4 +64,5 @@ Recommended indexing targets:
 - `research_vault/*.json`
 - `research_vault/runs/logs/**/notes/*.json`
 - `research_vault/*.log`
+- `research_vault/warehouse/manifests/*.jsonl`
 
