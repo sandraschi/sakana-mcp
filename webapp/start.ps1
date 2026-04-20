@@ -1,3 +1,13 @@
+﻿Param([switch]$Headless)
+
+# --- SOTA Headless Standard ---
+if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
+    Start-Process pwsh -ArgumentList '-NoProfile', '-File', $PSCommandPath, '-Headless' -WindowStyle Hidden
+    exit
+}
+$WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
+# ------------------------------
+
 param(
   [int]$FrontendPort = 10862,
   [int]$BackendPort = 10863
@@ -38,4 +48,5 @@ $frontendDir = (Get-Location).Path
 # Use cmd.exe so npm.cmd is resolved reliably even when npm.ps1 policy differs.
 Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "cd /d `"$frontendDir`" && npm install && npm run dev -- --port $FrontendPort --host 127.0.0.1")
 Pop-Location
+
 

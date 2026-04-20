@@ -1,3 +1,5 @@
+[![FastMCP Version](https://img.shields.io/badge/FastMCP-3.1.0-blue?style=flat-square&logo=python&logoColor=white)](https://github.com/sandraschi/fastmcp) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Built with Just](https://img.shields.io/badge/Built_with-Just-000000?style=flat-square&logo=gnu-bash&logoColor=white)](https://github.com/casey/just)
+
 ## sakana-mcp
 
 MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research director for autonomous scientific loops.
@@ -11,7 +13,7 @@ MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research dir
 - `docs/operations/README.md`: Docker, safety model, runbooks, and troubleshooting
 - `research_library/README.md`: sample research task catalog
 - `prompts/README.md`: reusable prompt templates
-- `skills/FASTMCP_3_1_SKILL.md`: FastMCP 3.1 operator skill card
+- `skills/FASTMCP_3_1_SKILL.md`: FastMCP 3.1.0 operator skill card
 
 ## Core Guarantees
 
@@ -58,3 +60,13 @@ Warehouse directories are auto-created under `research_vault/warehouse`:
 
 Docker is strongly recommended and treated as the default execution path for experiments because AI-Scientist v2 executes model-generated code.
 
+
+## 🛡️ Industrial Quality Stack
+
+This project adheres to **SOTA 14.1** industrial standards for high-fidelity agentic orchestration:
+
+- **Python (Core)**: [Ruff](https://astral.sh/ruff) for linting and formatting. Zero-tolerance for `print` statements in core handlers (`T201`).
+- **Webapp (UI)**: [Biome](https://biomejs.dev/) for sub-millisecond linting. Strict `noConsoleLog` enforcement.
+- **Protocol Compliance**: Hardened `stdout/stderr` isolation to ensure crash-resistant JSON-RPC communication.
+- **Automation**: [Justfile](./justfile) recipes for all fleet operations (`just lint`, `just fix`, `just dev`).
+- **Security**: Automated audits via `bandit` and `safety`.
