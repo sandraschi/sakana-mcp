@@ -49,12 +49,23 @@ Warehouse directories are auto-created under `research_vault/warehouse`:
 
 ## Quick Start
 
+```powershell
+git clone https://github.com/sandraschi/sakana-mcp
+cd sakana-mcp
+just
+```
+
+This opens an interactive dashboard showing all available commands. Run `just bootstrap` to install dependencies, then `just serve` or `just dev` to start.
+
+### Manual Setup
+
+If you don't have `just` installed:
 1. Clone this repo and ensure `vendor/ai-scientist-v2` exists.
 2. Set required environment variables.
 3. Build Docker images:
-   - `docker compose build`
+- `docker compose build`
 4. Run MCP server locally:
-   - `python -m sakana_mcp.server`
+- `python -m sakana_mcp.server`
 
 ## Safety Position
 

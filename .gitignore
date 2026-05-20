@@ -27,3 +27,5 @@ Thumbs.db
 # Ignore external cloned upstream not owned by this repo
 vendor/ai-scientist-v2/
 
+
+_dashboard/
