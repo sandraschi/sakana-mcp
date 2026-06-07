@@ -1,4 +1,8 @@
-﻿Param([switch]$Headless)
+﻿param(
+  [switch]$Headless,
+  [int]$FrontendPort = 10862,
+  [int]$BackendPort = 10863
+)
 
 # --- SOTA Headless Standard ---
 if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
@@ -7,11 +11,6 @@ if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
 }
 $WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
 # ------------------------------
-
-param(
-  [int]$FrontendPort = 10862,
-  [int]$BackendPort = 10863
-)
 
 $ErrorActionPreference = "Stop"
 
