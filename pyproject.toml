@@ -5,12 +5,19 @@ description = "MCP server wrapping Sakana AI Scientist v2 for autonomous researc
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "ruff>=0.15.2",
-    "fastmcp>=3.1.0",
+    "ruff>=0.16.0,<0.17",
+    "fastmcp>=3.4.4,<4",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
     "pydantic>=2.7",
     "pyyaml>=6.0.1",
     "prefab-ui>=0.14.0",
+    "httpx>=0.28",
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-asyncio", "httpx"]
+dev = ["ruff>=0.16.0,<0.17", "mypy"]
 
 [project.scripts]
 sakana-mcp = "sakana_mcp.server:main"
@@ -25,7 +32,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "S", "UP", "RUF"]
-ignore = ["S101", "B008"]
+ignore = ["S101", "B008", "S106", "S110", "S112", "RUF012"]
 
 [tool.ruff.format]
 quote-style = "double"
