@@ -1,49 +1,37 @@
+﻿# Fleet unified launcher - do not edit logic here.
+# Change fleet-start.config.ps1 at the repo root instead.
 param(
-  [switch]$Headless,
-  [int]$FrontendPort = 10862,
-  [int]$BackendPort = 10863
+    [switch]$Headless,
+    [switch]$BackendOnly,
+    [switch]$FrontendOnly,
+    [switch]$NoBrowser,
+    [switch]$ReuseIfRunning
 )
 
-# --- SOTA Headless Standard ---
-if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
-    Start-Process pwsh -ArgumentList '-NoProfile', '-File', $PSCommandPath, '-Headless' -WindowStyle Hidden
-    exit
+$ErrorActionPreference = 'Stop'
+$ReposRoot = if ($env:FLEET_REPOS_ROOT) { $env:FLEET_REPOS_ROOT } else { 'D:\Dev\repos' }
+$EnginePath = Join-Path $ReposRoot 'mcp-central-docs\scripts\Invoke-FleetWebappStart.ps1'
+if (-not (Test-Path -LiteralPath $EnginePath)) {
+    Write-Host "ERROR: Missing fleet start engine: $EnginePath" -ForegroundColor Red
+    exit 1
 }
-$WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
-# ------------------------------
+. $EnginePath
 
-$ErrorActionPreference = "Stop"
-
-function Stop-PortProcess {
-  param([int]$Port)
-  $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-  if (-not $conns) { return }
-  $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-  foreach ($procId in $pids) {
-    if ($procId -and $procId -ne 0) {
-      try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+$configCandidates = @(
+    (Join-Path $PSScriptRoot 'fleet-start.config.ps1'),
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'fleet-start.config.ps1')
+)
+$configPath = $null
+foreach ($candidate in $configCandidates) {
+    if (Test-Path -LiteralPath $candidate) {
+        $configPath = $candidate
+        break
     }
-  }
+}
+if (-not $configPath) {
+    Write-Host 'ERROR: Missing fleet-start.config.ps1 (repo root or beside start.ps1).' -ForegroundColor Red
+    exit 1
 }
 
-Stop-PortProcess -Port $FrontendPort
-Stop-PortProcess -Port $BackendPort
+Start-FleetWebapp @PSBoundParameters -ConfigPath $configPath -LauncherRoot $PSScriptRoot
 
-Write-Host "Starting sakana-mcp webapp..."
-Write-Host "Frontend: http://localhost:$FrontendPort"
-Write-Host "Backend:  http://localhost:$BackendPort"
-
-Push-Location (Join-Path $PSScriptRoot "backend")
-$pythonCmd = Get-Command py -ErrorAction SilentlyContinue
-if ($pythonCmd) {
-  Start-Process -FilePath "py" -ArgumentList @("-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "$BackendPort", "--reload")
-} else {
-  Start-Process -FilePath "python" -ArgumentList @("-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "$BackendPort", "--reload")
-}
-Pop-Location
-
-Push-Location (Join-Path $PSScriptRoot "frontend")
-$frontendDir = (Get-Location).Path
-# Use cmd.exe so npm.cmd is resolved reliably even when npm.ps1 policy differs.
-Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "cd /d `"$frontendDir`" && npm install && npm run dev -- --port $FrontendPort --host 127.0.0.1")
-Pop-Location
