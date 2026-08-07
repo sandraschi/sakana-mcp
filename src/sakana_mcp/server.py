@@ -9,6 +9,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.context import Context
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 import yaml
 from sakana_mcp.library import SAMPLE_TASKS, load_custom_tasks, task_to_dict
 from sakana_mcp.warehouse import append_manifest, ensure_warehouse
@@ -151,6 +153,45 @@ mcp = FastMCP(
     version="0.1.0",
     description="Sakana AI Scientist v2 wrapper for autonomous scientific research loops.",
 )
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "healthy", "server": "sakana-mcp"})
+
+
+@mcp.custom_route("/api/llm/providers", methods=["GET"])
+async def llm_providers(request: Request) -> JSONResponse:
+    import httpx
+    models: list[str] = []
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get("http://localhost:11434/api/tags")
+            for m in r.json().get("models", []):
+                name = m.get("name", "")
+                if name:
+                    models.append(name)
+    except Exception:
+        pass
+    return JSONResponse({"providers": [{"name": "ollama", "models": models}]})
+
+
+@mcp.custom_route("/api/llm/chat", methods=["POST"])
+async def llm_chat(request: Request) -> JSONResponse:
+    import httpx
+    body = await request.json()
+    model = body.get("model", "gemma3:1b")
+    prompt = body.get("prompt", "")
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.post(
+                "http://localhost:11434/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+            )
+            data = r.json()
+            return JSONResponse({"response": data.get("response", "")})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @mcp.tool()

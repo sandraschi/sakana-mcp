@@ -9,6 +9,7 @@ import { VaultPage } from "./pages/VaultPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { LogsPage } from "./pages/LogsPage";
 import { LibraryPage } from "./pages/LibraryPage";
+import FloatingChat from "./components/FloatingChat";
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
         <Route path="/logs" element={<LogsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <FloatingChat />
     </AppLayout>
   );
 }

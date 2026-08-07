@@ -28,4 +28,9 @@ Thumbs.db
 vendor/ai-scientist-v2/
 
 
+# Rust / Tauri native builds
+native/target/
+native/gen/
+native/binaries/
+
 _dashboard/
