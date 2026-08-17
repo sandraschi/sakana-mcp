@@ -1,0 +1,27 @@
+{
+  "manifest_version": "0.2",
+  "name": "sakana-mcp",
+  "version": "0.1.0",
+  "description": "MCP server wrapping Sakana AI Scientist v2 for autonomous research loops",
+  "author": { "name": "sandraschi" },
+  "server": {
+    "type": "python",
+    "entry_point": "src/sakana_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run","--directory","${PWD}","python","-m","sakana_mcp"],
+      "env": {
+        "PYTHONPATH": "${PWD}/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  },
+  "tools": [
+    { "name": "research_ideate", "description": "research_ideate" },
+    { "name": "research_execute", "description": "research_execute" },
+    { "name": "research_status", "description": "research_status" },
+    { "name": "research_review", "description": "research_review" },
+    { "name": "research_library", "description": "research_library" },
+    { "name": "research_workflow_plan", "description": "research_workflow_plan" }
+  ]
+}

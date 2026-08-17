@@ -1,0 +1,37 @@
+[project]
+name = "sakana-mcp"
+version = "0.1.0"
+description = "MCP server wrapping Sakana AI Scientist v2 for autonomous research loops"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ruff>=0.15.2",
+    "fastmcp>=3.2,<4",
+    "pydantic>=2.7",
+    "pyyaml>=6.0.1",
+    "prefab-ui>=0.14.0",
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-asyncio", "httpx"]
+dev = ["ruff>=0.9.0", "mypy"]
+
+[project.scripts]
+sakana-mcp = "sakana_mcp.server:main"
+
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "S", "UP", "RUF"]
+ignore = ["S101", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

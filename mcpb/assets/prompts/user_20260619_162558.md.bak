@@ -1,0 +1,478 @@
+# sakana-mcp — User Guide
+
+**Server:** sakana-mcp v0.1.0
+**Description:** Autonomous scientific research assistant powered by Sakana AI Scientist v2.
+**Transport:** stdio (default) or HTTP (set `MCP_TRANSPORT=http`).
+
+---
+
+## Installation
+
+### Prerequisites
+
+- **Python 3.11+** with `uv` package manager
+- **Git** (for cloning AI Scientist v2 vendor)
+- **Docker Desktop** (required for `research_execute`)
+- **Ollama** (optional, for local LLM chat)
+- **Gemini API key** (https://aistudio.google.com/apikey)
+- **Semantic Scholar API key** (https://api.semanticscholar.org/)
+
+### Setup Steps
+
+```bash
+git clone https://github.com/sandraschi/sakana-mcp.git
+cd sakana-mcp
+uv venv
+uv sync
+
+# (Recommended) Clone AI Scientist v2
+mkdir -p vendor
+git clone https://github.com/SakanaAI/AI-Scientist-v2.git vendor/ai-scientist-v2
+cd vendor/ai-scientist-v2 && pip install -e . && cd ../..
+
+# Set environment variables
+set GEMINI_API_KEY=your_gemini_api_key
+set S2_API_KEY=your_s2_api_key
+
+# Start
+uv run python -m sakana_mcp
+```
+
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "sakana-mcp": {
+      "command": "uv",
+      "args": ["run", "--directory", "C:/path/to/sakana-mcp", "python", "-m", "sakana_mcp"],
+      "env": {
+        "GEMINI_API_KEY": "your-key",
+        "S2_API_KEY": "your-key",
+        "AI_SCIENTIST_V2_PATH": "C:/path/to/vendor/ai-scientist-v2"
+      }
+    }
+  }
+}
+```
+
+## Step-by-Step Tutorials
+
+### Tutorial 1: Generate Research Hypotheses (Ideation)
+
+**Goal:** Use `research_ideate` to generate 5 research hypotheses about attention sparsity and robustness.
+
+**Background:** Ideation is the first step in the autonomous research loop. You describe a focus area and the AI Scientist generates concrete, testable hypotheses.
+
+**Tool Call:**
+```
+research_ideate(codebase_hint="Investigate how attention sparsity affects model robustness to input noise.", model="gemini-2.5-flash", max_num_generations=5, num_reflections=3)
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "result": {
+    "hypotheses": [
+      {"id": "H1", "title": "Sparse attention improves noise robustness", "hypothesis": "Models with sparse attention patterns will show higher accuracy under Gaussian input noise compared to dense attention baselines."},
+      {"id": "H2", "title": "Layer-specific dropout for adversarial robustness", "hypothesis": "Applying higher dropout rates in early layers improves robustness to adversarial perturbations without sacrificing clean accuracy."}
+    ],
+    "count": 5,
+    "mode": "ai_scientist_v2"
+  }
+}
+```
+
+**What happened:** The AI Scientist v2 ideation module generated 5 hypotheses about attention mechanisms and robustness. Each has a unique ID, title, and testable hypothesis statement. Results saved to `research_vault/ideation_last.json`.
+
+### Tutorial 2: Ideation with Fallback Mode
+
+**Goal:** Generate hypotheses when AI Scientist v2 is not installed.
+
+**Tool Call:** `research_ideate(codebase_hint="Optimize transformer inference speed")`
+
+**Return:**
+```json
+{
+  "success": true,
+  "result": {"hypotheses": [{"id": "H1", "title": "Improve baseline by targeted ablations", "hypothesis": "Focused ablations will identify high-leverage components..."}], "count": 5, "mode": "fallback"},
+  "ideation_error": "No module named 'ai_scientist'"
+}
+```
+
+**What happened:** The tool fell back to 5 generic hardcoded hypotheses with `mode: "fallback"` and the import error in `ideation_error`.
+
+### Tutorial 3: Execute Hypotheses in Docker
+
+**Goal:** Run the experiment on hypothesis H1. Requires Docker.
+
+**Tool Call:**
+```
+research_execute(idea_idx=0, num_workers=4, max_debug_depth=3)
+```
+
+**Return:**
+```json
+{
+  "success": true,
+  "return_code": 0,
+  "mode": "docker_only",
+  "logs": {"stdout": ".../execute_last_stdout.log", "stderr": ".../execute_last_stderr.log"},
+  "message": "Experiment execution completed in Docker."
+}
+```
+
+**What happened:** BTFS config was generated, `docker compose run scientist-executor` was launched with 4 workers and debug depth 3, stdout/stderr captured to log files.
+
+### Tutorial 4: Monitor Experiment Health
+
+**Goal:** Check the health of running/completed tree-search.
+
+**Tool Call:** `research_status()`
+
+**Return:**
+```json
+{
+  "success": true,
+  "status": "running_or_completed",
+  "tree_health": {"good_nodes": 85, "buggy_nodes": 12, "ratio_good_to_buggy": 7.08},
+  "stages": [
+    {"stage": "stage_1", "total_nodes": 20, "good_nodes": 18, "buggy_nodes": 2, "best_metric": 0.94},
+    {"stage": "stage_2", "total_nodes": 45, "good_nodes": 40, "buggy_nodes": 5, "best_metric": 0.91}
+  ]
+}
+```
+
+**What happened:** Two stage progress files were found. Overall ratio is 7.08 good-to-buggy nodes, indicating healthy experiment branches.
+
+### Tutorial 5: VLM Manuscript Review
+
+**Goal:** Review a research paper PDF for figure-caption consistency.
+
+**Tool Call:**
+```
+research_review(pdf_path="C:/manuscripts/paper.pdf", model="gpt-4o-2024-11-20")
+```
+
+**Return:**
+```json
+{
+  "success": true,
+  "model": "gpt-4o-2024-11-20",
+  "review_path": ".../research_vault/paper.review_img_cap_ref.json",
+  "figures_reviewed": 8
+}
+```
+
+**What happened:** 8 figures were extracted and analyzed by GPT-4o. Results saved to vault as JSON.
+
+### Tutorial 6: Browse Research Tasks
+
+**Goal:** List all available tasks.
+
+**Tool Call:** `research_library()`
+
+**Return:** 4 tasks across 3 domains. Filter with `research_library(domain="machine-learning")` to see only ML tasks.
+
+### Tutorial 7: Generate Workflow Plan
+
+**Goal:** Get a 4-step plan for the debug-loop efficiency study.
+
+**Tool Call:** `research_workflow_plan(task_id="llm_debug_loop_efficiency")`
+
+**Return:** A plan covering ideation, execution, monitoring, and review with specific tool call templates.
+
+### Tutorial 8: End-to-End Research Lifecycle
+
+**Step 1:** `research_ideate(codebase_hint="Curriculum learning for low-data regimes")` — generates 5 hypotheses.
+**Step 2:** `research_execute(idea_idx=0, num_workers=4)` — launches Docker experiment.
+**Step 3:** `research_status()` — monitors progress.
+**Step 4:** `research_review(pdf_path="C:/vault/runs/manuscript.pdf")` — VLM review.
+**Step 5:** `research_workflow_plan(task_id="data_curriculum_generalization")` — plans next cycle.
+
+### Tutorial 9: Add Custom Research Tasks
+
+Create `research_library/tasks/my_rl_task.json` with standard schema, then `research_library()` detects it automatically.
+
+### Tutorial 10: HTTP Transport Mode
+
+Start with `set MCP_TRANSPORT=http` then `uv run python -m sakana_mcp`. Use curl to test `/health`, `/api/llm/providers`, `/api/llm/chat`.
+
+### Tutorial 11: Docker Execution Failure Recovery
+
+When Docker Compose is missing, `research_execute` returns `success: false` with recovery options pointing to the missing file and suggesting you run from the repo root.
+
+### Tutorial 12: Custom Workshop Ideation
+
+Create `my_workshop.md` with Title, Keywords, TL;DR, Abstract sections. Call `research_ideate(workshop_file="my_workshop.md")` for domain-specific hypotheses.
+
+---
+
+## REST API Reference
+
+### GET /health — `{"status": "healthy", "server": "sakana-mcp"}`
+### GET /api/llm/providers — Ollama model discovery on localhost:11434
+### POST /api/llm/chat — `{"model": "gemma3:1b", "prompt": "..."}` returns `{"response": "..."}`
+
+## Troubleshooting
+
+1. **Vendor missing:** Clone AI Scientist v2 or set `AI_SCIENTIST_V2_PATH`.
+2. **Docker missing:** Create `docker-compose.yml` with `scientist-executor` service.
+3. **Ideas file not found:** Run `research_ideate` first.
+4. **Container error:** Check `execute_last_stderr.log` for details.
+5. **Unknown task_id:** Call `research_library()` to discover valid IDs.
+6. **PDF not found:** Provide absolute path to manuscript.
+7. **VLM 0 figures:** PDF may be scanned or lack embedded figures.
+8. **Ideation falls back:** Check `ideation_error` and verify `GEMINI_API_KEY`.
+
+## FAQ
+
+1. **Do I need Docker?** Only for `research_execute`. Other tools work standalone.
+2. **What models are supported?** Any model from `ai_scientist.llm.create_client()` — GPT-4o, Gemini, Claude, Ollama.
+3. **Where are experiments stored?** In `research_vault/` — all hypotheses, logs, configs, reviews.
+4. **Can I run experiments without Docker?** No — execution always uses `docker compose run`.
+5. **How to add custom tasks?** Create JSON files in `research_library/tasks/`.
+6. **What does the warehouse manifest track?** Every ideation, execution, and review operation.
+7. **Does it support HTTP?** Yes, via `MCP_TRANSPORT=http`.
+8. **What API keys are needed?** `GEMINI_API_KEY` for ideation; `S2_API_KEY` is reserved.
+9. **How many hypotheses per ideation?** Up to 20 (`max_num_generations`).
+10. **Good vs buggy nodes?** Good completed without errors; buggy encountered failures.
+
+## Detailed Tutorial Walkthroughs
+
+### Extended Tutorial: Complete Research Session Walkthrough
+
+This extended walkthrough demonstrates a complete research session from start to finish. The scenario: a researcher wants to investigate how sparse attention mechanisms affect model robustness to input noise and adversarial perturbations.
+
+**Session Start:**
+
+The agent first calls `research_library()` to discover available tasks. The function returns 4 built-in tasks. The researcher selects `ml_ablation_robustness` as the starting point because its summary directly mentions robustness analysis.
+
+**Step 1 - Ideation with Codebase Hint:**
+
+`research_ideate(codebase_hint="Investigate how attention sparsity mechanisms affect model robustness to Gaussian input noise and adversarial patch attacks. Focus on transformer-based vision models.")`
+
+The AI Scientist generates 5 hypotheses. The top hypothesis (H1) states: "Sparse attention patterns improve noise robustness by reducing the receptive field and limiting the propagation of corrupted signals through the network."
+
+**Step 2 - Generating a Workflow Plan:**
+
+`research_workflow_plan(task_id="ml_ablation_robustness", num_workers=4)`
+
+The plan provides 4 steps: ideation (already completed), execution (with 4 workers), status monitoring, and review. The researcher proceeds to step 2.
+
+**Step 3 - Executing the Experiment:**
+
+`research_execute(idea_idx=0, num_workers=4, max_debug_depth=3)`
+
+The tool validates that docker-compose.yml exists, that the AI Scientist vendor is present, and that the ideas file is available. It generates the BTFS runtime configuration with 4 parallel workers, then launches the Docker container. After completion, it returns success with exit code 0. The stdout log shows experiment progress across 3 stages with 120 total nodes explored.
+
+**Step 4 - Monitoring Tree Health:**
+
+`research_status()`
+
+The tool finds 3 stage progress files. Stage 1: 40 nodes, 38 good, 2 buggy (ratio 19:1). Stage 2: 50 nodes, 45 good, 5 buggy (ratio 9:1). Stage 3: 30 nodes, 25 good, 5 buggy (ratio 5:1). Overall ratio is 108:12 (9:1), indicating healthy experiment progress. The best metric starts at 0.95 and decreases to 0.89 across stages, which is expected as harder experiments are attempted.
+
+**Step 5 - Generating the Manuscript:**
+
+After execution completes, the AI Scientist generates a LaTeX manuscript summarizing findings. The PDF is written to `research_vault/runs/experiment_results.pdf`.
+
+**Step 6 - VLM Review:**
+
+`research_review(pdf_path="/home/user/research_vault/runs/experiment_results.pdf", model="gpt-4o-2024-11-20")`
+
+The VLM extracts 12 figures from the manuscript and analyzes each one. The review identifies 3 figure-caption mismatches: Figure 3's caption mentions "attention head pruning" but the figure shows dropout rates; Figure 7's x-axis is mislabeled; and Figure 12 references a metric not discussed in the accompanying text. The review JSON is saved to the vault for the researcher to address.
+
+**Step 7 - Next Research Cycle:**
+
+The researcher uses `research_workflow_plan(task_id="data_curriculum_generalization")` to get a plan for the next cycle, this time focusing on curriculum learning. The cycle repeats with a new focus area.
+
+### Extended Tutorial: Custom Workshop Ideation
+
+Create a detailed workshop file `my_workshop.md`:
+```markdown
+# Title
+Efficient Attention Mechanisms for Long-Context Language Models
+
+# Keywords
+sparse attention, linear attention, long-context, transformer optimization, memory efficiency
+
+# TL;DR
+Compare sparse, linear, and sliding-window attention mechanisms for their efficiency-quality tradeoffs in long-context scenarios exceeding 128K tokens.
+
+# Abstract
+The quadratic complexity of self-attention limits transformer scalability to long sequences exceeding 128K tokens. Several approximate attention mechanisms have been proposed: sparse attention patterns (local windows + global tokens), linear attention (kernel-based approximations), and sliding window attention. However, these methods are typically evaluated on different benchmarks and sequence lengths, making direct comparison difficult. This study proposes a unified evaluation framework to compare these mechanisms across consistent long-context benchmarks, measuring throughput, memory usage, and task accuracy at sequence lengths from 32K to 512K tokens.
+```
+
+Call: `research_ideate(workshop_file="C:/Users/user/my_workshop.md", model="gpt-4o", max_num_generations=7, num_reflections=5)`
+
+This produces 7 hypotheses specifically about attention mechanism efficiency, generated by GPT-4o with 5 reflection rounds each for refined quality.
+
+### Extended Tutorial: Multi-Worker Execution with High Debug Depth
+
+For complex hypotheses that are likely to encounter implementation issues, use more workers and deeper debug:
+
+`research_execute(idea_idx=2, num_workers=8, max_debug_depth=5, allow_host_execution=false)`
+
+This launches 8 parallel branches, each allowed up to 5 automatic bug-fix retries. The execution takes longer but has a higher chance of successful completion for challenging hypotheses.
+
+### Troubleshooting FAQ - Extended
+
+**How do I verify the AI Scientist vendor is correctly installed?** Run `research_ideate(codebase_hint="test")` and check if the mode is `"ai_scientist_v2"` or `"fallback"`. If fallback, check `ideation_error` for the import error. Common issues: the vendor path is wrong, `pip install -e .` was not run in the vendor directory, or Python version incompatibility.
+
+**Can I use multiple different models for different steps?** Yes. Each tool accepts an independent `model` parameter. You can use `gemini-2.5-flash` for fast ideation and `gpt-4o` for VLM review, for example.
+
+**What happens if the Docker container runs out of memory?** Docker returns a non-zero exit code (typically 137 for OOM kill). The stderr log will contain the Docker OOM message. Increase Docker memory limits in the Compose file.
+
+**How do I resume interrupted work?** All artifacts persist in the research vault between server restarts. The vault directory is not ephemeral. To resume, run `research_status()` to check the last state, then continue from where you left off.
+
+**Can I run experiments on a remote server?** The research vault is a local directory. For remote execution, mount the vault and vendor directories on the remote machine via network filesystem (NFS, SMB) or sync them before running.
+
+**What about version control for the research vault?** The vault is a regular directory. You can put it under git, use DVC for dataset versioning, or any other file-based version control system. The JSONL manifest provides a natural audit trail.
+
+**How do I clean up old experiments?** The vault accumulates artifacts over time. You can safely delete individual stage log files, old manifest dates, or the entire `runs/` directory. The warehouse manifest will no longer have entries for deleted artifacts.
+
+## REST API Testing Guide
+
+Test the HTTP transport with these curl commands after starting with `MCP_TRANSPORT=http`:
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# List Ollama models
+curl http://localhost:8000/api/llm/providers
+
+# Chat with Ollama
+curl -X POST http://localhost:8000/api/llm/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gemma3:1b", "prompt": "List 5 research topics in ML"}'
+```
+
+## Environment Variable Configuration Guide
+
+Each environment variable affects specific tools and behaviors. Configure them in your shell profile, Claude Desktop MCP config, or a `.env` file.
+
+### RESEARCH_VAULT_PATH
+This variable controls where all experiment artifacts are stored. If not set, defaults to `./research_vault/` relative to the working directory. The path is resolved to absolute on first use and all subdirectories are created automatically. For team setups, point this to a shared network drive for collaborative research. For containerized deployment, ensure this path is mounted into the Docker container alongside the vendor directory.
+
+### AI_SCIENTIST_V2_PATH
+Points to the Sakana AI Scientist v2 repository clone. The path must contain the `ai_scientist/` Python package directory. If not set, defaults to `./vendor/ai-scientist-v2/`. The server imports modules from this path at runtime. If the directory does not exist or the import fails, `research_ideate` falls back to hardcoded hypotheses and `research_review` fails with an error. Set this to an absolute path for reliability, especially when running as a system service.
+
+### GEMINI_API_KEY
+Required when using Gemini models for ideation or review. Get your key from the Google AI Studio website. The key is passed to the AI Scientist client which uses it to authenticate with the Gemini API. Without this key, ideation using `"gemini-2.5-flash"` or `"gemini-2.5-pro"` will fail with authentication errors. The server reads this variable at startup but does not validate it — validation occurs lazily when the AI Scientist client is first used.
+
+### S2_API_KEY
+Semantic Scholar API key for future paper search features. Currently accepted but not consumed by any tool. Get a free key from the Semantic Scholar API portal. When implemented, this will enable citation graph traversal and related-work generation.
+
+## Performance Optimization Guide
+
+### Ideation Speed
+Ideation speed depends primarily on the chosen LLM model. Gemini 2.5 Flash typically generates 5 hypotheses with 3 reflections in 30-60 seconds. GPT-4o takes 45-90 seconds. Local models via Ollama (Gemma 3:1b, Llama 3.2:3b) take 2-5 minutes. For faster iteration, reduce `num_reflections` to 1 or 2. For higher quality, increase to 5 or more.
+
+### Execution Performance
+Execution in Docker is CPU and memory intensive. The `num_workers` parameter controls parallelism — each worker adds approximately linear resource consumption. On a system with 16 CPU cores and 32GB RAM, using 8 workers is reasonable. On smaller systems, use 2-4 workers. The `max_debug_depth` parameter only adds time when branches encounter errors. For well-tested hypotheses, a depth of 2 is sufficient. For exploratory work, use 5.
+
+### Disk Space Management
+The research vault can grow quickly with experiment logs and artifacts. Each experiment run writes stdout and stderr logs (potentially hundreds of MB), stage progress JSON files, review outputs, and warehouse manifest entries. Monitor disk usage in `research_vault/runs/logs/` and `research_vault/warehouse/manifests/`. Old stage logs can be safely deleted after review. The warehouse manifest is append-only and should be rotated periodically.
+
+## Working with Multiple Tasks
+
+The research library supports multiple tasks simultaneously. Use `research_library()` to list all available tasks, then call `research_workflow_plan()` for each task to get a structured execution plan. Tasks can be executed independently or sequentially. Custom tasks are automatically loaded from `research_library/tasks/*.json` and merged with built-in tasks.
+
+## Integration with CI/CD Pipelines
+
+For automated research pipelines, run the server in HTTP mode and make tool calls via the MCP transport protocol. A typical CI pipeline might:
+1. Call `research_library()` to find tasks
+2. Call `research_ideate()` to generate hypotheses
+3. Call `research_execute()` to run experiments
+4. Call `research_status()` to verify completion
+5. Call `research_review()` to check the manuscript
+
+Each step can be a separate CI job, with the research vault persisting between jobs.
+
+## Docker Compose Template
+
+Create this `docker-compose.yml` in the repo root for `research_execute`:
+
+```yaml
+version: "3.8"
+services:
+  scientist-executor:
+    build:
+      context: ./vendor/ai-scientist-v2
+      dockerfile: Dockerfile
+    volumes:
+      - ./research_vault:/workspace/research_vault
+      - ./vendor/ai-scientist-v2:/workspace/vendor/ai-scientist-v2
+    working_dir: /workspace/vendor/ai-scientist-v2
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+```
+
+## Custom Task JSON Schema - Extended
+
+Custom tasks must match this schema exactly:
+
+```json
+{
+  "task_id": "unique_lowercase_id",
+  "title": "Human-Readable Title for Display",
+  "domain": "domain-category",
+  "difficulty": "beginner|intermediate|advanced",
+  "summary": "One or two sentences describing the task purpose.",
+  "success_criteria": ["Specific measurable outcome 1", "Specific measurable outcome 2"],
+  "starter_prompt": "Detailed prompt for the ideation step. Include context, constraints, and evaluation criteria."
+}
+```
+
+The `task_id` must be unique across all tasks. The `domain` can be any string. The `difficulty` must be exactly `"beginner"`, `"intermediate"`, or `"advanced"`. The `starter_prompt` is used by `research_workflow_plan` as the codebase hint for the ideation step.
+
+## Extended API Reference
+
+The sakana-mcp server operates on the FastMCP protocol which uses JSON-RPC 2.0 as its wire format. Each tool call corresponds to a 	ools/call JSON-RPC method. The server supports both synchronous and asynchronous tool execution. All six tools are asynchronous and return their results once processing completes. For long-running operations like esearch_execute, the tool blocks until the Docker container exits. For very long experiments (hours), consider running esearch_execute in a separate process and monitoring with esearch_status.
+
+### Tool Naming Conventions
+
+All tool names follow the esearch_ prefix convention for consistency. Parameters use snake_case naming. Boolean parameters should be passed as JSON 	rue/alse. Integer parameters are validated client-side by FastMCP's schema. String parameters have no length limit imposed by the server, but extremely long codebase_hint values (>10,000 characters) may cause token limit issues with the underlying LLM.
+
+### Response Envelope
+
+Every tool returns a JSON object with a success boolean. When success is 	rue, domain-specific fields are populated. When success is alse, the rror field contains a descriptive message and ecovery_options contains actionable steps. Additional fields like ecommendations and elated_operations are provided for agent guidance.
+
+### Context Parameter
+
+The ctx parameter is a FastMCP Context object that is automatically injected when the tool is called from an MCP client. It provides logging via ctx.info(), progress reporting via ctx.report_progress(), and access to sampling capabilities via ctx.sample(). The progress reporting is used by esearch_ideate, esearch_execute, and esearch_review to show intermediate progress during long-running operations.
+
+## Library Module Internals
+
+The library.py module defines the ResearchTask dataclass with fields: 	ask_id (str), 	itle (str), domain (str), difficulty (str), summary (str), success_criteria (list of str), starter_prompt (str). The SAMPLE_TASKS list contains 4 predefined tasks. The load_custom_tasks() function scans esearch_library/tasks/ for *.json files and parses them as task dictionaries. JSON parsing errors are silently skipped for individual files, so one malformed task file does not prevent loading other tasks.
+
+## Warehouse Module Internals
+
+The warehouse.py module provides two functions:
+- nsure_warehouse(vault) — Creates the warehouse directory structure under the given vault path. Creates subdirectories: runs, reviews, manuscripts, datasets, exports, and manifests.
+- ppend_manifest(vault, event_type, payload) — Appends a JSONL entry to warehouse/manifests/{YYYY-MM-DD}.jsonl with a UTC timestamp, the event type string, and the payload dict.
+
+## Research Vault File Persistence
+
+All files in the research vault persist across server restarts. The vault is a regular directory on the filesystem and follows standard file system persistence guarantees. Files written by esearch_ideate (ideation_last.json), esearch_execute (stdout/stderr logs), and esearch_review (review JSON) remain available until explicitly deleted. The warehouse manifest files are append-only and grow over time. Consider implementing log rotation for long-running deployments.
+
+## Common Tool Call Patterns
+
+### Pattern 1: Basic Discovery
+Call esearch_library() to see all tasks. Call esearch_workflow_plan(task_id="...") to get a plan. Call esearch_ideate() to generate hypotheses. This pattern works without Docker and without the AI Scientist vendor.
+
+### Pattern 2: Full Research Cycle (requires Docker + vendor)
+Call esearch_ideate(), then esearch_execute(idea_idx=0), then esearch_status(), then esearch_review(pdf_path="..."). The vault persists between calls so you can monitor progress over time.
+
+### Pattern 3: Custom Task Research
+Create a custom task JSON file, call esearch_library() to verify it loaded, call esearch_workflow_plan(task_id="custom_task") for the plan, then follow Pattern 2.
+
+### Pattern 4: Multi-Hypothesis Comparison
+Call esearch_ideate(max_num_generations=10) to get 10 hypotheses. Call esearch_execute(idea_idx=0), then esearch_execute(idea_idx=1), etc. Compare results using esearch_status() for each run.

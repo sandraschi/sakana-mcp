@@ -1,0 +1,67 @@
+param(
+  [switch]$Headless,
+  [int]$FrontendPort = 10862,
+  [int]$BackendPort = 10863
+$FleetStartPath = Join-Path $ProjectRoot "scripts\FleetStartMode.ps1"
+if (-not (Test-Path -LiteralPath $FleetStartPath)) {
+    Write-Host "ERROR: Missing vendored launcher helper: $FleetStartPath" -ForegroundColor Red
+    exit 1
+}
+. $FleetStartPath
+
+)
+
+# --- SOTA Headless Standard ---
+if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
+    Start-Process pwsh -ArgumentList '-NoProfile', '-File', $PSCommandPath, '-Headless' -WindowStyle Hidden
+    exit
+}
+$WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
+# ------------------------------
+
+$ErrorActionPreference = "Stop"
+
+function Stop-PortProcess {
+  param([int]$Port)
+  $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+  if (-not $conns) { return }
+  $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+  foreach ($procId in $pids) {
+    if ($procId -and $procId -ne 0) {
+      try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+    }
+  }
+}
+
+Stop-PortProcess -Port $FrontendPort
+Stop-PortProcess -Port $BackendPort
+
+Write-Host "Starting sakana-mcp webapp..."
+Write-Host "Frontend: http://localhost:$FrontendPort"
+Write-Host "Backend:  http://localhost:$BackendPort"
+
+Push-Location $PSScriptRoot
+Write-Host "Syncing Python deps (uv sync) ..." -ForegroundColor Cyan
+$sync = Start-Process -FilePath "uv" -ArgumentList "sync" -WorkingDirectory $PSScriptRoot -Wait -PassThru -NoNewWindow
+if ($sync.ExitCode -ne 0) { exit $sync.ExitCode }
+Pop-Location
+
+# Install backend deps and start
+Push-Location (Join-Path $PSScriptRoot "backend")
+uv pip install -r requirements.txt
+$backendProc = Start-Process -FilePath "uv" -ArgumentList @("run", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "$BackendPort") -NoNewWindow -PassThru
+Pop-Location
+
+# Wait for backend to be ready
+Write-Host "Waiting for backend on port $BackendPort ..." -ForegroundColor Cyan
+for ($i = 0; $i -lt 30; $i++) {
+    try { $null = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/api/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop; Write-Host "Backend ready!" -ForegroundColor Green; break }
+    catch { Start-Sleep -Seconds 1 }
+}
+
+# Start frontend
+Push-Location (Join-Path $PSScriptRoot "frontend")
+$frontendDir = (Get-Location).Path
+if (-not (Test-Path "node_modules")) { npm install }
+Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "cd /d `"$frontendDir`" && npm run dev -- --port $FrontendPort --host 127.0.0.1")
+Pop-Location

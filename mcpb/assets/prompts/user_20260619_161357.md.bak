@@ -1,0 +1,656 @@
+# sakana-mcp — User Guide
+
+**Server:** sakana-mcp v0.1.0
+**Description:** Autonomous scientific research assistant powered by Sakana AI Scientist v2.
+**Transport:** stdio (default) or HTTP (set `MCP_TRANSPORT=http`).
+
+---
+
+## Installation
+
+### Prerequisites
+
+- **Python 3.11+** with `uv` package manager
+- **Git** (for cloning AI Scientist v2 vendor)
+- **Docker Desktop** (required for `research_execute`)
+- **Ollama** (optional, for local LLM chat)
+- **Gemini API key** — get one at https://aistudio.google.com/apikey
+- **Semantic Scholar API key** — get one at https://api.semanticscholar.org/
+
+### Setup Steps
+
+```bash
+# 1. Clone the sakana-mcp repository
+git clone https://github.com/sandraschi/sakana-mcp.git
+cd sakana-mcp
+
+# 2. Create virtual environment and install dependencies
+uv venv
+uv sync
+
+# 3. (Recommended) Clone AI Scientist v2 for full ideation + review
+mkdir -p vendor
+git clone https://github.com/SakanaAI/AI-Scientist-v2.git vendor/ai-scientist-v2
+cd vendor/ai-scientist-v2 && pip install -e . && cd ../..
+
+# 4. Set environment variables
+set GEMINI_API_KEY=your_gemini_api_key
+set S2_API_KEY=your_s2_api_key
+
+# 5. Start the MCP server (stdio mode)
+uv run python -m sakana_mcp
+
+# 6. (Alternative) HTTP mode
+set MCP_TRANSPORT=http
+uv run python -m sakana_mcp
+```
+
+### Claude Desktop Configuration
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "sakana-mcp": {
+      "command": "uv",
+      "args": ["run", "--directory", "C:/path/to/sakana-mcp", "python", "-m", "sakana_mcp"],
+      "env": {
+        "GEMINI_API_KEY": "your-key",
+        "S2_API_KEY": "your-key",
+        "AI_SCIENTIST_V2_PATH": "C:/path/to/vendor/ai-scientist-v2"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Step-by-Step Tutorials
+
+### Tutorial 1: Generate Research Hypotheses (Ideation)
+
+**Goal:** Use `research_ideate` to generate 5 machine learning research hypotheses about robustness.
+
+**Tool Call:**
+```
+research_ideate(
+  codebase_hint="Investigate how attention sparsity affects model robustness to input noise.",
+  model="gemini-2.5-flash",
+  max_num_generations=5,
+  num_reflections=3
+)
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "result": {
+    "hypotheses": [
+      {"id": "H1", "title": "Sparse attention improves noise robustness", "hypothesis": "Models with sparse attention patterns will show higher accuracy under Gaussian input noise compared to dense attention..."},
+      {"id": "H2", "title": "Layer-specific dropout for adversarial robustness", "hypothesis": "Applying higher dropout rates in early layers will improve robustness to adversarial perturbations..."},
+      {"id": "H3", "title": "Attention head pruning for distribution shift", "hypothesis": "Pruning redundant attention heads reduces overfitting and improves OOD detection..."},
+      {"id": "H4", "title": "Noise injection during training as regularizer", "hypothesis": "Structured noise injection in attention layers during training acts as a regularizer and improves generalization..."},
+      {"id": "H5", "title": "Cross-attention ablation for modality robustness", "hypothesis": "Removing cross-attention in late fusion layers preserves unimodal performance while improving multimodal robustness..."}
+    ],
+    "count": 5,
+    "mode": "ai_scientist_v2"
+  }
+}
+```
+
+**What happened:** The AI Scientist v2 ideation module generated 5 distinct hypotheses about attention mechanisms and robustness. Each hypothesis has a clear title and a testable statement. The hypotheses were saved to the research vault at `research_vault/ideation_last.json` and logged in the warehouse manifest.
+
+---
+
+### Tutorial 2: Ideation with Fallback (No AI Scientist)
+
+**Goal:** Generate hypotheses when the AI Scientist v2 vendor is not installed.
+
+**Tool Call:**
+```
+research_ideate(codebase_hint="Optimize transformer inference speed")
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "result": {
+    "hypotheses": [
+      {"id": "H1", "title": "Improve baseline by targeted ablations", "hypothesis": "Focused ablations will identify high-leverage components and yield a measurable improvement on a representative benchmark."},
+      {"id": "H2", "title": "Reduce compute via adaptive pruning", "hypothesis": "Adaptive pruning of low-promise branches during tree search will reduce compute while preserving solution quality."}
+    ],
+    "count": 5,
+    "mode": "fallback",
+    "ideation_error": "No module named 'ai_scientist'"
+  }
+}
+```
+
+**What happened:** The tool attempted to import the AI Scientist module but failed (vendor not found). It fell back to 5 generic hardcoded hypotheses. The `mode` field is `"fallback"` and `ideation_error` contains the import error message.
+
+---
+
+### Tutorial 3: Execute Hypotheses in Docker Sandbox
+
+**Goal:** Run the experiment manager on hypothesis H1 from the previous ideation.
+
+**Prerequisites:** Docker Desktop must be running, `docker-compose.yml` must exist in the repo root, and the AI Scientist vendor must be installed.
+
+**Tool Call:**
+```
+research_execute(
+  idea_idx=0,
+  num_workers=4,
+  max_debug_depth=3
+)
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "return_code": 0,
+  "mode": "docker_only",
+  "result": {
+    "ideas_file": "C:/Users/user/sakana-mcp/research_vault/default_workshop.json",
+    "idea_idx": 0,
+    "num_workers": 4,
+    "max_debug_depth": 3
+  },
+  "logs": {
+    "stdout": "C:/Users/user/sakana-mcp/research_vault/execute_last_stdout.log",
+    "stderr": "C:/Users/user/sakana-mcp/research_vault/execute_last_stderr.log"
+  },
+  "warehouse_manifest": "C:/Users/user/sakana-mcp/research_vault/warehouse/manifests/2026-06-19.jsonl",
+  "message": "Experiment execution completed in Docker."
+}
+```
+
+**What happened:** The tool prepared a BTFS runtime configuration (`bfts_config.runtime.yaml`) with 4 worker nodes and max debug depth of 3. It copied the ideas file into the vault, then ran `docker compose run scientist-executor` with a Python command that imports and calls `perform_experiments_bfts`. Full stdout and stderr were captured to log files. The return code is 0, indicating the container exited successfully.
+
+---
+
+### Tutorial 4: Monitor Experiment Health
+
+**Goal:** Check the health of an in-progress or completed tree-search experiment.
+
+**Tool Call:**
+```
+research_status()
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "status": "running_or_completed",
+  "tree_health": {
+    "good_nodes": 85,
+    "buggy_nodes": 12,
+    "ratio_good_to_buggy": 7.08
+  },
+  "stages": [
+    {
+      "stage": "stage_1",
+      "total_nodes": 20,
+      "good_nodes": 18,
+      "buggy_nodes": 2,
+      "best_metric": 0.94,
+      "path": "C:/research_vault/runs/logs/stage_1/notes/stage_progress.json"
+    },
+    {
+      "stage": "stage_2",
+      "total_nodes": 45,
+      "good_nodes": 40,
+      "buggy_nodes": 5,
+      "best_metric": 0.91,
+      "path": "C:/research_vault/runs/logs/stage_2/notes/stage_progress.json"
+    },
+    {
+      "stage": "stage_3",
+      "total_nodes": 32,
+      "good_nodes": 27,
+      "buggy_nodes": 5,
+      "best_metric": 0.88,
+      "path": "C:/research_vault/runs/logs/stage_3/notes/stage_progress.json"
+    }
+  ]
+}
+```
+
+**What happened:** The tool scanned the vault's `runs/logs/` directory and found three stage progress files. Across all stages, there were 85 good experiment branches and 12 buggy ones, giving a healthy ratio of 7.08 good-to-buggy nodes. The best metric decreased across stages (0.94 -> 0.91 -> 0.88), which is expected as harder experiments are attempted.
+
+---
+
+### Tutorial 5: Review a Manuscript with VLM
+
+**Goal:** Review a research paper PDF for figure-caption-reference consistency.
+
+**Prerequisites:** AI Scientist v2 vendor must be installed. A VLM-capable model must be configured.
+
+**Tool Call:**
+```
+research_review(
+  pdf_path="C:/Users/user/sakana-mcp/manuscripts/experiment_1_paper.pdf",
+  model="gpt-4o-2024-11-20"
+)
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "model": "gpt-4o-2024-11-20",
+  "pdf_path": "C:/Users/user/sakana-mcp/manuscripts/experiment_1_paper.pdf",
+  "review_path": "C:/Users/user/sakana-mcp/research_vault/experiment_1_paper.review_img_cap_ref.json",
+  "figures_reviewed": 8
+}
+```
+
+**What happened:** The tool extracted all figures from the PDF, sent each figure along with its caption and in-text references to the GPT-4o VLM for analysis. The review output was saved as a JSON file in the research vault. The review covered 8 figures, identifying mismatches between what figures show, what captions describe, and what the text references.
+
+---
+
+### Tutorial 6: Browse Available Research Tasks
+
+**Goal:** Discover what research tasks are available, filtered by domain.
+
+**Tool Call:**
+```
+research_library(domain="machine-learning")
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "tasks": [
+    {
+      "task_id": "ml_ablation_robustness",
+      "title": "Ablation-driven robustness analysis",
+      "domain": "machine-learning",
+      "difficulty": "intermediate",
+      "summary": "Identify which model components most influence robustness under shift/noise.",
+      "success_criteria": ["At least 3 ablation variants evaluated", "One robustness metric reported", "Clear hypothesis-to-result mapping in writeup"],
+      "starter_prompt": "Study robustness under distribution shift for a baseline model. Focus on component ablations that can be run within a few hours."
+    },
+    {
+      "task_id": "data_curriculum_generalization",
+      "title": "Curriculum for generalization gains",
+      "domain": "machine-learning",
+      "difficulty": "advanced",
+      "summary": "Test whether synthetic curriculum stages improve cross-dataset generalization.",
+      "success_criteria": ["Curriculum schedule explicitly defined", "Compared against no-curriculum baseline", "Generalization delta reported across at least 2 datasets"],
+      "starter_prompt": "Design a staged easy-to-hard curriculum and evaluate whether it improves generalization relative to direct training."
+    }
+  ],
+  "domains": ["agent-systems", "machine-learning", "scientific-writing"]
+}
+```
+
+**What happened:** The tool returned 2 tasks filtered by the `machine-learning` domain (out of 4 total across 3 domains). Each task includes structured metadata: difficulty level, success criteria, and a starter prompt that can be piped directly into `research_ideate`.
+
+---
+
+### Tutorial 7: Generate a Full Workflow Plan
+
+**Goal:** Get a step-by-step plan for executing the debug-loop efficiency study.
+
+**Tool Call:**
+```
+research_workflow_plan(
+  task_id="llm_debug_loop_efficiency",
+  num_workers=3
+)
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "task": {
+    "task_id": "llm_debug_loop_efficiency",
+    "title": "Debug-loop efficiency profiling",
+    "domain": "agent-systems",
+    "difficulty": "intermediate",
+    "summary": "Measure whether deeper debug loops increase success rates or just cost.",
+    "success_criteria": [
+      "Evaluate at multiple max_debug_depth values",
+      "Track success, runtime, and failure categories",
+      "Recommend an operating point with rationale"
+    ],
+    "starter_prompt": "Benchmark different debug depths in agentic tree search and quantify trade-offs."
+  },
+  "workflow_plan": [
+    {"step": 1, "tool": "research_ideate", "args": {"codebase_hint": "Benchmark different debug depths...", "max_num_generations": 5}, "goal": "Generate candidate hypotheses aligned with the selected task."},
+    {"step": 2, "tool": "research_execute", "args": {"num_workers": 3, "max_debug_depth": 3}, "goal": "Run experiment manager in Docker sandbox."},
+    {"step": 3, "tool": "research_status", "args": {}, "goal": "Track buggy/non-buggy tree evolution and stage progression."},
+    {"step": 4, "tool": "research_review", "args": {"pdf_path": "<path-to-paper.pdf>"}, "goal": "Review figure-caption-text alignment and capture revision directives."}
+  ]
+}
+```
+
+**What happened:** The tool found the task by ID and generated a 4-step workflow plan that chains: ideation -> execution -> status monitoring -> manuscript review. Each step includes the tool name, the arguments to pass, and the goal of that step. The `<path-to-paper.pdf>` placeholder needs to be replaced with the actual PDF path after step 3 generates a manuscript.
+
+---
+
+### Tutorial 8: Full Research Lifecycle (End-to-End)
+
+**Goal:** Run a complete research cycle: ideate, execute, monitor, and review.
+
+**Step 1 — Ideate:**
+```
+research_ideate(
+  codebase_hint="Study how curriculum learning affects neural network generalization in low-data regimes.",
+  max_num_generations=5,
+  num_reflections=3
+)
+```
+Returns 5 hypotheses. Note hypothesis H1 ID and the `research_vault` path.
+
+**Step 2 — Execute hypothesis H1:**
+```
+research_execute(
+  idea_idx=0,
+  num_workers=4,
+  max_debug_depth=3
+)
+```
+Launches Docker container. Returns logs paths and exit code.
+
+**Step 3 — Monitor progress:**
+```
+research_status()
+```
+Returns tree health metrics. If too many buggy nodes, consider re-ideating or adjusting parameters.
+
+**Step 4 — After experiment generates a manuscript PDF at `research_vault/runs/manuscript.pdf`:**
+```
+research_review(
+  pdf_path="C:/research_vault/runs/manuscript.pdf",
+  model="gpt-4o-2024-11-20"
+)
+```
+Returns review artifacts with figure-caption mismatch findings.
+
+**Step 5 — Browse tasks for next iteration:**
+```
+research_library(domain="agent-systems")
+```
+Discover tasks in a different domain for the next research cycle.
+
+---
+
+### Tutorial 9: Custom Task Integration
+
+**Goal:** Add a custom research task and verify it appears in the library.
+
+Create `research_library/tasks/my_custom_task.json`:
+```json
+{
+  "task_id": "my_rl_policy_search",
+  "title": "RL policy architecture search",
+  "domain": "reinforcement-learning",
+  "difficulty": "advanced",
+  "summary": "Evaluate how policy network depth affects sample efficiency in continuous control tasks.",
+  "success_criteria": [
+    "At least 3 policy architectures compared",
+    "Sample efficiency curves reported",
+    "Statistical significance test included"
+  ],
+  "starter_prompt": "Compare shallow vs deep policy networks for continuous control and measure sample efficiency."
+}
+```
+
+**Tool Call:**
+```
+research_library()
+```
+
+**Return Value:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "tasks": [/* 4 built-in + 1 custom */],
+  "domains": ["agent-systems", "machine-learning", "reinforcement-learning", "scientific-writing"]
+}
+```
+
+**What happened:** The custom task is loaded from `research_library/tasks/my_custom_task.json` and merged with the built-in tasks. The new `reinforcement-learning` domain appears in the `domains` list.
+
+---
+
+### Tutorial 10: Test HTTP Transport
+
+**Goal:** Start the server in HTTP mode and verify REST endpoints.
+
+```bash
+set MCP_TRANSPORT=http
+uv run python -m sakana_mcp
+```
+
+Then in another terminal:
+```bash
+curl http://localhost:8000/health
+# Returns: {"status": "healthy", "server": "sakana-mcp"}
+
+curl http://localhost:8000/api/llm/providers
+# Returns: {"providers": [{"name": "ollama", "models": ["gemma3:1b", ...]}]}
+
+curl -X POST http://localhost:8000/api/llm/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gemma3:1b", "prompt": "What is attention sparsity?"}'
+# Returns: {"response": "Attention sparsity refers to..."}
+```
+
+---
+
+### Tutorial 11: Execute Without Docker (Explicit Safety Override)
+
+**Goal:** Attempt host execution and see the Docker enforcement.
+
+**Tool Call:**
+```
+research_execute(idea_idx=0, allow_host_execution=false)
+```
+
+**Return:**
+```json
+{
+  "success": false,
+  "error": "docker-compose.yml not found in repository root",
+  "recovery_options": [
+    "Add docker-compose.yml with `scientist-executor` service.",
+    "Run this tool from the sakana-mcp repo root."
+  ]
+}
+```
+
+Even with `allow_host_execution=true`, the tool still requires Docker. Host-only execution is not implemented — the tool always uses `docker compose run`.
+
+---
+
+### Tutorial 12: Create a Custom Workshop File
+
+**Goal:** Generate hypotheses from a custom workshop description instead of the default.
+
+Create `my_workshop.md`:
+```markdown
+# Title
+Efficient Transformer Architectures for Edge Deployment
+
+# Keywords
+transformer pruning, quantization, edge ML, latency optimization
+
+# TL;DR
+Investigate pruning and quantization strategies for deploying transformers on resource-constrained edge devices while maintaining accuracy above 90%.
+
+# Abstract
+We explore structured pruning followed by INT8 quantization as a pipeline for reducing transformer model size by 4x while keeping accuracy degradation under 2% on the GLUE benchmark.
+```
+
+**Tool Call:**
+```
+research_ideate(
+  workshop_file="C:/Users/user/my_workshop.md",
+  model="gemini-2.5-flash",
+  max_num_generations=5,
+  num_reflections=3
+)
+```
+
+The tool reads the workshop file, sends it to the AI Scientist ideation module, and generates hypotheses focused on efficient transformer deployment.
+
+---
+
+## REST API Reference
+
+### GET /health
+
+**Response:**
+```json
+{"status": "healthy", "server": "sakana-mcp"}
+```
+
+### GET /api/llm/providers
+
+Discovers available Ollama models on localhost:11434.
+
+**Response:**
+```json
+{"providers": [{"name": "ollama", "models": ["gemma3:1b", "llama3.2:3b"]}]}
+```
+
+**Error:** If Ollama is unreachable, returns `{"providers": []}`.
+
+### POST /api/llm/chat
+
+Proxies a chat completion request to Ollama.
+
+**Request:**
+```json
+{
+  "model": "gemma3:1b",
+  "prompt": "Explain attention sparsity in one paragraph."
+}
+```
+
+**Response:**
+```json
+{"response": "Attention sparsity is a technique where..."}
+```
+
+**Errors:**
+- Model not found: HTTP 500 with `{"error": "model \"xyz\" not found, try pulling it first"}`
+- Ollama unreachable: HTTP 500 with `{"error": "ConnectError..."}`
+- Timeout after 120 seconds: HTTP 500 with timeout message.
+
+---
+
+## Troubleshooting
+
+### 1. "AI Scientist vendor directory missing"
+
+**Problem:** `research_ideate` returns fallback mode with error about missing `ai_scientist` module.
+
+**Solution:** Clone the AI Scientist v2 repository:
+```bash
+mkdir -p vendor
+git clone https://github.com/SakanaAI/AI-Scientist-v2.git vendor/ai-scientist-v2
+cd vendor/ai-scientist-v2 && pip install -e . && cd ../..
+```
+Or set `AI_SCIENTIST_V2_PATH` to an existing clone location.
+
+### 2. "docker-compose.yml not found"
+
+**Problem:** `research_execute` fails because it can't find the Docker Compose file.
+
+**Solution:** Ensure you are running from the sakana-mcp repo root and that `docker-compose.yml` exists. Create one if missing:
+```yaml
+version: "3.8"
+services:
+  scientist-executor:
+    build: ./vendor/ai-scientist-v2
+    volumes:
+      - ./research_vault:/workspace/research_vault
+      - ./vendor/ai-scientist-v2:/workspace/vendor/ai-scientist-v2
+    working_dir: /workspace/vendor/ai-scientist-v2
+```
+
+### 3. "Ideas file not found"
+
+**Problem:** `research_execute` cannot find the ideas JSON file.
+
+**Solution:** Run `research_ideate` first to generate hypotheses. Or provide an explicit `ideas_file` parameter pointing to a valid ideas JSON.
+
+### 4. Docker container exits with non-zero code
+
+**Problem:** `research_execute` returns `success: false` with `return_code != 0`.
+
+**Solution:** Check the stderr log file at the path returned in `logs.stderr`. Common issues include missing Python dependencies inside the container, disk space, or API key misconfiguration.
+
+### 5. "Unknown task_id"
+
+**Problem:** `research_workflow_plan` fails for a given task ID.
+
+**Solution:** Call `research_library()` to list all valid task IDs. Ensure the task_id matches exactly (case-sensitive).
+
+### 6. PDF not found in research_review
+
+**Problem:** `research_review` returns error that the PDF does not exist.
+
+**Solution:** Provide an absolute path to the manuscript PDF. The file must exist on the local filesystem. Relative paths are resolved from the current working directory.
+
+### 7. VLM review produces no figures
+
+**Problem:** `research_review` returns `figures_reviewed: 0`.
+
+**Solution:** The PDF may not contain embedded figures, or the figure extraction failed. Verify the PDF is not scanned/image-only. Try a different PDF or check that the AI Scientist VLM dependencies are installed.
+
+### 8. Ideation returns only fallback hypotheses
+
+**Problem:** Even with AI Scientist installed, ideation uses fallback mode.
+
+**Solution:** Check the `ideation_error` field for details. Common issues: missing `GEMINI_API_KEY`, incompatible AI Scientist version, or Python import path problems. Try setting `AI_SCIENTIST_V2_PATH` explicitly.
+
+---
+
+## FAQ
+
+### 1. Do I need Docker to use sakana-mcp?
+
+Only for `research_execute`. The other tools (`research_ideate`, `research_status`, `research_review`, `research_library`, `research_workflow_plan`) work without Docker. Ideation falls back gracefully if the AI Scientist vendor is missing.
+
+### 2. What models does research_ideate support?
+
+Any model supported by the AI Scientist v2 `create_client()` function. Common values: `"gemini-2.5-flash"`, `"gpt-4o"`, `"claude-sonnet-4-20250514"`, `"gemma3:1b"` (via Ollama). The model must be accessible via the configured API key.
+
+### 3. Where are my experiments stored?
+
+In the research vault, defaulting to `./research_vault/`. All hypotheses, logs, configs, and review artifacts are saved there. The vault is a local directory — nothing is uploaded to the cloud.
+
+### 4. Can I run experiments without Docker?
+
+No. `research_execute` is designed to always use Docker for isolation. Host execution is blocked by design and all calls go through `docker compose run`. This ensures experiment code cannot access the host system.
+
+### 5. How do I add my own research tasks?
+
+Create a JSON file in `research_library/tasks/` following the task schema (`task_id`, `title`, `domain`, `difficulty`, `summary`, `success_criteria`, `starter_prompt`). It will be automatically loaded by `research_library()` and `research_workflow_plan()`.
+
+### 6. What is the difference between ideation and execution?
+
+Ideation generates hypotheses using LLM-based tree search. Execution tests those hypotheses by running actual experiments in a Docker container. Ideation is fast and cheap; execution is slow and compute-intensive.
+
+### 7. Does sakana-mcp support HTTP transport?
+
+Yes. Set `MCP_TRANSPORT=http` and the server will bind to localhost:8000 with SSE transport. The custom REST endpoints (`/health`, `/api/llm/*`) are always available regardless of transport mode.
+
+### 8. What API keys are required?
+
+`GEMINI_API_KEY` is needed for the AI Scientist ideation module. `S2_API_KEY` (Semantic Scholar) is reserved for future features but does not block current functionality. Without `GEMINI_API_KEY`, ideation falls back to hardcoded hypotheses.

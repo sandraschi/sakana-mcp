@@ -8,7 +8,7 @@ import sys
 from typing import Any
 
 from fastmcp import FastMCP
-from fastmcp.context import Context
+from fastmcp import Context
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 import yaml
@@ -151,7 +151,7 @@ def _summarize_stage_progress(vault: Path) -> list[dict[str, Any]]:
 mcp = FastMCP(
     "sakana-mcp",
     version="0.1.0",
-    description="Sakana AI Scientist v2 wrapper for autonomous scientific research loops.",
+    instructions="Sakana AI Scientist v2 wrapper for autonomous scientific research loops.",
 )
 
 

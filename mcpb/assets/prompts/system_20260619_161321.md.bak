@@ -1,0 +1,333 @@
+# sakana-mcp — MCP Server Capabilities
+
+**Server:** sakana-mcp v0.1.0
+**Description:** FastMCP wrapper around Sakana AI Scientist v2 for autonomous scientific research loops. Supports hypothesis ideation, containerized experiment execution, tree-search health monitoring, VLM-based manuscript review, research task discovery, and workflow planning.
+
+---
+
+## Architecture Overview
+
+sakana-mcp acts as an orchestration layer between an LLM client (Claude Desktop, Cursor, etc.) and the Sakana AI Scientist v2 codebase. It manages a **research vault** on disk (default `./research_vault/`), which stores hypotheses, experiment configs, logs, review artifacts, and a JSONL manifest warehouse. The vault directory tree is:
+
+```
+research_vault/
+  default_workshop.md      # Workshop description used during ideation
+  default_workshop.json    # Generated ideas from AI Scientist v2
+  ideation_last.json       # Most recent ideation result
+  execute_last_request.json
+  execute_last_stdout.log
+  execute_last_stderr.log
+  runs/
+    bfts_config.runtime.yaml
+    workspace/
+    logs/
+      stage_*/notes/stage_progress.json
+    data/
+  warehouse/
+    manifests/             # JSONL event log
+    runs/
+    reviews/
+    manuscripts/
+    datasets/
+    exports/
+```
+
+The **AI Scientist v2 vendor** directory defaults to `./vendor/ai-scientist-v2/` and is cloned from the open-source repository. When the vendor directory is missing, `research_ideate` falls back to built-in hardcoded hypotheses.
+
+The server exposes a custom REST API at `/health` and `/api/llm/*` for web dashboard integration, plus six MCP tools covering the full research lifecycle.
+
+---
+
+## Tool Reference
+
+### 1. research_ideate
+
+**Purpose:** Generate 5 research hypotheses using Progressive Agentic Tree Search. Invokes the AI Scientist v2 ideation module when vendored, or falls back to 5 built-in hardcoded hypotheses.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `codebase_hint` | `str \| None` | No | `None` | Optional hint about the current repo or focus area, used as TL;DR/Abstract in workshop file. |
+| `workshop_file` | `str \| None` | No | `None` | Path to a markdown workshop description file. If omitted, a default is written to `research_vault/default_workshop.md`. |
+| `model` | `str` | No | `"gemini-2.5-flash"` | Model string passed to the AI Scientist ideation client (e.g. `"gpt-4o"`, `"gemini-2.5-flash"`, `"claude-sonnet-4-20250514"`). |
+| `max_num_generations` | `int` | No | `5` | Number of ideas to generate (1-20). |
+| `num_reflections` | `int` | No | `3` | Number of reflection rounds per idea (1-10). Deeper reflections refine hypotheses more but cost more tokens. |
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "result": {
+    "hypotheses": [
+      {"id": "H1", "title": "Improve baseline by targeted ablations", "hypothesis": "Focused ablations will identify high-leverage components..."},
+      {"id": "H2", "title": "Reduce compute via adaptive pruning", "hypothesis": "Adaptive pruning of low-promise branches..."}
+    ],
+    "count": 5,
+    "codebase_hint": null,
+    "mode": "ai_scientist_v2"
+  },
+  "research_vault": "C:/path/research_vault",
+  "ai_scientist_v2_path": "C:/path/vendor/ai-scientist-v2",
+  "warehouse_manifest": "C:/path/research_vault/warehouse/manifests/2026-06-19.jsonl",
+  "ideation_error": null,
+  "recommendations": [
+    "Set AI_SCIENTIST_V2_PATH if vendor path differs from ./vendor/ai-scientist-v2.",
+    "Enable Docker compose sandbox so future `research_execute` runs are container-only."
+  ],
+  "related_operations": ["research_execute", "research_status", "research_review"]
+}
+```
+
+**When mode is "fallback":** The returned hypotheses are generic stubs (ablation studies, pruning, adversarial debugging, curriculum learning, structured peer review). This indicates the AI Scientist v2 vendor directory was not found or ideation import failed.
+
+**Errors:**
+- Vendor not found: returns fallback hypotheses with `ideation_error` set to the exception message.
+- Workshop file not found: auto-creates a default workshop using `codebase_hint`.
+
+---
+
+### 2. research_execute
+
+**Purpose:** Launch the AI Scientist experiment manager inside a Docker sandbox. The tool prepares a BTFS (Breadth-First Tree Search) runtime configuration, copies ideas JSON into the vault, and runs `docker compose run scientist-executor` to execute experiments in a containerized environment.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `ideas_file` | `str \| None` | No | `None` | Path to the ideas JSON file (from research_ideate). Defaults to `research_vault/default_workshop.json`. |
+| `idea_idx` | `int` | No | `0` | Zero-based index of the idea entry to execute from the ideas file. |
+| `num_workers` | `int` | No | `3` | Number of parallel tree-search branches (1-16). |
+| `max_debug_depth` | `int` | No | `3` | Maximum debug retry depth for buggy experiment branches (1-10). |
+| `allow_host_execution` | `bool` | No | `false` | Safety valve. Host execution is blocked unless this is explicitly set to `true`. |
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "return_code": 0,
+  "mode": "docker_only",
+  "result": {
+    "ideas_file": "C:/path/research_vault/default_workshop.json",
+    "idea_idx": 0,
+    "num_workers": 3,
+    "max_debug_depth": 3
+  },
+  "logs": {
+    "stdout": "C:/path/research_vault/execute_last_stdout.log",
+    "stderr": "C:/path/research_vault/execute_last_stderr.log"
+  },
+  "warehouse_manifest": "C:/path/research_vault/warehouse/manifests/2026-06-19.jsonl",
+  "message": "Experiment execution completed in Docker."
+}
+```
+
+**Errors:**
+- `docker-compose.yml` not found in repo root.
+- AI Scientist vendor directory missing.
+- Ideas file not found (run `research_ideate` first).
+- Docker not installed or not running.
+- Container exits with non-zero code.
+
+**Recovery options** are included in every error response as a `recovery_options` list.
+
+---
+
+### 3. research_status
+
+**Purpose:** Monitor tree-search health from the latest run artifacts. Scans the vault's `runs/logs/` directory for stage progress JSON files and aggregates good/buggy node counts.
+
+**Parameters:** None.
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "status": "running_or_completed",
+  "tree_health": {
+    "good_nodes": 42,
+    "buggy_nodes": 7,
+    "ratio_good_to_buggy": 6.0
+  },
+  "stages": [
+    {
+      "stage": "stage_1",
+      "total_nodes": 10,
+      "good_nodes": 8,
+      "buggy_nodes": 2,
+      "best_metric": 0.92,
+      "path": "C:/path/research_vault/runs/logs/stage_1/notes/stage_progress.json"
+    }
+  ],
+  "research_vault": "C:/path/research_vault"
+}
+```
+
+**Notes:**
+- `status` is `"idle"` when no stage progress files exist, `"running_or_completed"` when at least one is found.
+- `ratio_good_to_buggy` is `null` when there are no buggy nodes (division by zero guard).
+- Stage files are matched by the glob pattern `stage_*/notes/stage_progress.json`.
+
+---
+
+### 4. research_review
+
+**Purpose:** Run a VLM (Vision Language Model) feedback loop over manuscript figures and captions. Extracts figures from a PDF, sends them with captions and text references to the configured VLM, and returns structured revision directives.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `pdf_path` | `str` | Yes | — | Absolute filesystem path to the manuscript PDF. |
+| `model` | `str` | No | `"gpt-4o-2024-11-20"` | VLM model identifier passed to the AI Scientist VLM client. Must support multimodal input. |
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "model": "gpt-4o-2024-11-20",
+  "pdf_path": "C:/path/manuscript.pdf",
+  "review_path": "C:/path/research_vault/manuscript.review_img_cap_ref.json",
+  "warehouse_manifest": "C:/path/research_vault/warehouse/manifests/2026-06-19.jsonl",
+  "figures_reviewed": 12
+}
+```
+
+**Errors:**
+- PDF not found at the specified path.
+- AI Scientist vendor not found (must be cloned for VLM review).
+- VLM API call fails (check `GEMINI_API_KEY` or equivalent env vars).
+
+---
+
+### 5. research_library
+
+**Purpose:** List available sample and custom research tasks. Built-in tasks cover machine learning ablation studies, curriculum learning, debug-loop profiling, and figure-caption audits. Custom tasks are loaded from `research_library/tasks/*.json`.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `domain` | `str \| None` | No | `None` | Optional domain filter. Common values: `"machine-learning"`, `"agent-systems"`, `"scientific-writing"`. |
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "count": 4,
+  "tasks": [
+    {
+      "task_id": "ml_ablation_robustness",
+      "title": "Ablation-driven robustness analysis",
+      "domain": "machine-learning",
+      "difficulty": "intermediate",
+      "summary": "Identify which model components most influence robustness under shift/noise.",
+      "success_criteria": [
+        "At least 3 ablation variants evaluated",
+        "One robustness metric reported",
+        "Clear hypothesis-to-result mapping in writeup"
+      ],
+      "starter_prompt": "Study robustness under distribution shift for a baseline model..."
+    }
+  ],
+  "domains": ["agent-systems", "machine-learning", "scientific-writing"]
+}
+```
+
+**Built-in tasks:**
+- `ml_ablation_robustness` — Ablation-driven robustness analysis (intermediate, ML)
+- `data_curriculum_generalization` — Curriculum for generalization gains (advanced, ML)
+- `llm_debug_loop_efficiency` — Debug-loop efficiency profiling (intermediate, agent-systems)
+- `vision_caption_consistency` — Figure-caption-reference consistency audit (beginner, scientific-writing)
+
+**Custom tasks:** Loaded from `research_library/tasks/*.json` in the repo root. Each JSON file must contain keys matching the standard task schema: `task_id`, `title`, `domain`, `difficulty`, `summary`, `success_criteria`, `starter_prompt`.
+
+---
+
+### 6. research_workflow_plan
+
+**Purpose:** Build a guided multi-step agentic workflow plan for a specific research task. Returns a sequence of tool calls the agent should make to go from ideation through execution, monitoring, and review.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `task_id` | `str` | Yes | — | Task identifier from `research_library()` output (e.g. `"ml_ablation_robustness"`). |
+| `num_workers` | `int` | No | `3` | Number of parallel workers for the execution step. |
+
+**Return Format:**
+```json
+{
+  "success": true,
+  "task": {
+    "task_id": "ml_ablation_robustness",
+    "title": "Ablation-driven robustness analysis",
+    "domain": "machine-learning",
+    "difficulty": "intermediate",
+    "summary": "Identify which model components most influence robustness under shift/noise.",
+    "success_criteria": [
+      "At least 3 ablation variants evaluated",
+      "One robustness metric reported",
+      "Clear hypothesis-to-result mapping in writeup"
+    ],
+    "starter_prompt": "Study robustness under distribution shift for a baseline model..."
+  },
+  "workflow_plan": [
+    {
+      "step": 1,
+      "tool": "research_ideate",
+      "args": {"codebase_hint": "Study robustness under distribution shift...", "max_num_generations": 5},
+      "goal": "Generate candidate hypotheses aligned with the selected task."
+    },
+    {
+      "step": 2,
+      "tool": "research_execute",
+      "args": {"num_workers": 3, "max_debug_depth": 3},
+      "goal": "Run experiment manager in Docker sandbox."
+    },
+    {
+      "step": 3,
+      "tool": "research_status",
+      "args": {},
+      "goal": "Track buggy/non-buggy tree evolution and stage progression."
+    },
+    {
+      "step": 4,
+      "tool": "research_review",
+      "args": {"pdf_path": "<path-to-paper.pdf>"},
+      "goal": "Review figure-caption-text alignment and capture revision directives."
+    }
+  ]
+}
+```
+
+**Errors:**
+- Unknown `task_id`: returns `success: false` with a recovery option pointing to `research_library()`.
+
+---
+
+## Configuration & Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RESEARCH_VAULT_PATH` | `./research_vault` | Directory for all experiment artifacts, logs, and manifests. Auto-created on first use. |
+| `AI_SCIENTIST_V2_PATH` | `./vendor/ai-scientist-v2` | Path to the Sakana AI Scientist v2 vendor directory. Must contain `ai_scientist/` package. |
+| `GEMINI_API_KEY` | — | API key for Gemini models used during ideation and review. |
+| `S2_API_KEY` | — | Semantic Scholar API key for paper search (currently unused, reserved for future stages). |
+
+## REST API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Returns `{"status": "healthy", "server": "sakana-mcp"}`. |
+| `/api/llm/providers` | GET | Discovers available Ollama models. Returns `{"providers": [{"name": "ollama", "models": ["gemma3:1b", ...]}]}`. |
+| `/api/llm/chat` | POST | Proxies a chat completion to Ollama. Body: `{"model": "gemma3:1b", "prompt": "..."}`. Returns `{"response": "..."}`. |
+
+## Security & Privacy
+
+- **Host execution blocked by default.** The `research_execute` tool requires `allow_host_execution=True` to run outside Docker. Without Docker, it will fail with a clear error.
+- **No secrets in logs.** API keys are read from environment variables and never logged.
+- **Local-first vault.** All artifacts are written to the local filesystem vault. No data is sent to external services except configured LLM API endpoints and Ollama (localhost).
+- **Docker isolation.** Experiment code runs in a container via `docker compose run`. The container mounts the research vault and the AI Scientist vendor directory.
+
+## Integration Points
+
+- **Ollama:** Auto-discovered via `/api/llm/providers` (localhost:11434). Used for local LLM chat and ideation.
+- **AI Scientist v2:** Imported from the vendor directory. Used for `research_ideate` (generation + reflection) and `research_review` (VLM figure-caption review).
+- **Docker:** Required for `research_execute`. The `docker-compose.yml` must define a `scientist-executor` service.
+- **Semantic Scholar API:** `S2_API_KEY` is accepted but not yet consumed.

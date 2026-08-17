@@ -1,0 +1,14 @@
+{
+    "product_name": "Sakana MCP",
+    "install_dir": "%LOCALAPPDATA%\\Sakana MCP",
+    "operator_exe": "sakana-mcp-native.exe",
+    "backend_process_names": ["sakana-mcp-native", "sakana-mcp-backend"],
+    "backend_port": 10700,
+    "health_path": "/api/v1/health",
+    "diagnostics_path": "/api/v1/diagnostics",
+    "feature_smoke_path": "/api/v1/system/info",
+    "window_title_re": "Sakana MCP",
+    "nsis_glob": "native/target/release/bundle/nsis/Sakana MCP_*_x64-setup.exe",
+    "bridge_ok_text": "REST bridge reachable",
+    "uninstall_registry_filter": "*Sakana MCP*"
+}
