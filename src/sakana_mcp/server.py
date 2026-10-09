@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
-from fastmcp import Context
+import yaml
+from fastmcp import Context, FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-import yaml
+
 from sakana_mcp.library import SAMPLE_TASKS, load_custom_tasks, task_to_dict
 from sakana_mcp.warehouse import append_manifest, ensure_warehouse
 
@@ -23,13 +23,23 @@ def _env_required(name: str) -> str:
     return value
 
 
+# Relative paths (defaults or env) resolve against the repo root, never the CWD:
+# Claude Desktop spawns stdio servers with cwd=C:\Windows\System32 (BUG-063).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _repo_path(value: str) -> Path:
+    path = Path(value)
+    return (path if path.is_absolute() else _REPO_ROOT / path).resolve()
+
+
 def _research_vault_path() -> Path:
     # Local-first default; caller can override via env var.
-    return Path(os.getenv("RESEARCH_VAULT_PATH", "./research_vault")).resolve()
+    return _repo_path(os.getenv("RESEARCH_VAULT_PATH", "research_vault"))
 
 
 def _vendor_root() -> Path:
-    return Path(os.getenv("AI_SCIENTIST_V2_PATH", "./vendor/ai-scientist-v2")).resolve()
+    return _repo_path(os.getenv("AI_SCIENTIST_V2_PATH", "vendor/ai-scientist-v2"))
 
 
 def _extract_hypotheses(ideas: list[dict[str, Any]], limit: int = 5) -> list[dict[str, str]]:
@@ -39,9 +49,7 @@ def _extract_hypotheses(ideas: list[dict[str, Any]], limit: int = 5) -> list[dic
             {
                 "id": f"H{idx}",
                 "title": str(idea.get("Title", idea.get("Name", f"Idea {idx}"))),
-                "hypothesis": str(
-                    idea.get("Short Hypothesis", idea.get("Abstract", "No hypothesis text provided."))
-                ),
+                "hypothesis": str(idea.get("Short Hypothesis", idea.get("Abstract", "No hypothesis text provided."))),
             }
         )
     return hypotheses
@@ -163,6 +171,7 @@ async def health_check(request: Request) -> JSONResponse:
 @mcp.custom_route("/api/llm/providers", methods=["GET"])
 async def llm_providers(request: Request) -> JSONResponse:
     import httpx
+
     models: list[str] = []
     try:
         async with httpx.AsyncClient(timeout=5) as client:
@@ -179,6 +188,7 @@ async def llm_providers(request: Request) -> JSONResponse:
 @mcp.custom_route("/api/llm/chat", methods=["POST"])
 async def llm_chat(request: Request) -> JSONResponse:
     import httpx
+
     body = await request.json()
     model = body.get("model", "gemma3:1b")
     prompt = body.get("prompt", "")
@@ -502,9 +512,7 @@ async def research_status(ctx: Context) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def research_review(
-    ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2024-11-20"
-) -> dict[str, Any]:
+async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2024-11-20") -> dict[str, Any]:
     """RESEARCH_REVIEW — Run VLM feedback loop over manuscript figures/captions."""
     vault = _research_vault_path()
     vault.mkdir(parents=True, exist_ok=True)
@@ -623,4 +631,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
