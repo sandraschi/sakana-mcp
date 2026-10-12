@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
@@ -443,7 +444,7 @@ async def research_execute(
     ]
 
     await ctx.report_progress(2, 4, "Launching Dockerized execution")
-    completed = subprocess.run(run_cmd, capture_output=True, text=True, check=False)
+    completed = await asyncio.to_thread(subprocess.run, run_cmd, capture_output=True, text=True, check=False)
 
     await ctx.report_progress(3, 4, "Collecting execution logs")
     stdout_path = vault / "execute_last_stdout.log"
