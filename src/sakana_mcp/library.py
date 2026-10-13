@@ -61,9 +61,7 @@ SAMPLE_TASKS: list[ResearchTask] = [
             "Track success, runtime, and failure categories",
             "Recommend an operating point with rationale",
         ],
-        starter_prompt=(
-            "Benchmark different debug depths in agentic tree search and quantify trade-offs."
-        ),
+        starter_prompt=("Benchmark different debug depths in agentic tree search and quantify trade-offs."),
     ),
     ResearchTask(
         task_id="vision_caption_consistency",
@@ -76,9 +74,7 @@ SAMPLE_TASKS: list[ResearchTask] = [
             "Mismatch categories summarized",
             "Actionable revision checklist produced",
         ],
-        starter_prompt=(
-            "Run comprehensive figure-caption-reference review and produce fix-ready findings."
-        ),
+        starter_prompt=("Run comprehensive figure-caption-reference review and produce fix-ready findings."),
     ),
 ]
 
@@ -106,4 +102,3 @@ def load_custom_tasks(root: Path) -> list[dict[str, Any]]:
         except Exception:
             continue
     return tasks
-

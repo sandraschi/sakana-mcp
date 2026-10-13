@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 
 def utc_now_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def ensure_warehouse(vault: Path) -> Path:
@@ -26,7 +26,7 @@ def ensure_warehouse(vault: Path) -> Path:
 
 def append_manifest(vault: Path, event_type: str, payload: dict[str, Any]) -> Path:
     warehouse = ensure_warehouse(vault)
-    date_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date_key = datetime.now(UTC).strftime("%Y-%m-%d")
     manifest_path = warehouse / "manifests" / f"{date_key}.jsonl"
     record = {
         "ts_utc": utc_now_stamp(),
@@ -36,4 +36,3 @@ def append_manifest(vault: Path, event_type: str, payload: dict[str, Any]) -> Pa
     with manifest_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record) + "\n")
     return manifest_path
-

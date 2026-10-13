@@ -215,7 +215,7 @@ async def research_ideate(
     max_num_generations: int = 5,
     num_reflections: int = 3,
 ) -> dict[str, Any]:
-    """RESEARCH_IDEATE — Generate 5 research hypotheses via Progressive Agentic Tree Search.
+    """RESEARCH_IDEATE - Generate 5 research hypotheses via Progressive Agentic Tree Search.
 
     PORTMANTEAU PATTERN RATIONALE:
     This server exposes a small, high-signal tool surface aligned with the Sakana v2 loop.
@@ -358,7 +358,7 @@ async def research_execute(
     max_debug_depth: int = 3,
     allow_host_execution: bool = False,
 ) -> dict[str, Any]:
-    """RESEARCH_EXECUTE — Launch AI Scientist experiment manager in Docker sandbox.
+    """RESEARCH_EXECUTE - Launch AI Scientist experiment manager in Docker sandbox.
 
     Args:
         ctx: FastMCP context.
@@ -489,7 +489,7 @@ async def research_execute(
 
 @mcp.tool()
 async def research_status(ctx: Context) -> dict[str, Any]:
-    """RESEARCH_STATUS — Monitor tree health from latest run artifacts."""
+    """RESEARCH_STATUS - Monitor tree health from latest run artifacts."""
     vault = _research_vault_path()
     await ctx.report_progress(1, 2, "Scanning run artifacts")
     stage_summaries = _summarize_stage_progress(vault)
@@ -514,7 +514,7 @@ async def research_status(ctx: Context) -> dict[str, Any]:
 
 @mcp.tool()
 async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2024-11-20") -> dict[str, Any]:
-    """RESEARCH_REVIEW — Run VLM feedback loop over manuscript figures/captions."""
+    """RESEARCH_REVIEW - Run VLM feedback loop over manuscript figures/captions."""
     vault = _research_vault_path()
     vault.mkdir(parents=True, exist_ok=True)
     vendor = _vendor_root()
@@ -557,7 +557,7 @@ async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2
 
 @mcp.tool()
 async def research_library(ctx: Context, *, domain: str | None = None) -> dict[str, Any]:
-    """RESEARCH_LIBRARY — List sample and custom research tasks."""
+    """RESEARCH_LIBRARY - List sample and custom research tasks."""
     _ = ctx
     root = _repo_root()
     builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
@@ -575,7 +575,7 @@ async def research_library(ctx: Context, *, domain: str | None = None) -> dict[s
 
 @mcp.tool()
 async def research_workflow_plan(ctx: Context, *, task_id: str, num_workers: int = 3) -> dict[str, Any]:
-    """RESEARCH_WORKFLOW_PLAN — Build a guided agentic workflow plan for a task."""
+    """RESEARCH_WORKFLOW_PLAN - Build a guided agentic workflow plan for a task."""
     _ = ctx
     builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
     all_tasks = builtins + load_custom_tasks(_repo_root())
