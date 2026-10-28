@@ -9,6 +9,7 @@
     Backend = @{
         Kind          = 'uvicorn'
         UvicornTarget = 'app:app'
+        WorkDir       = 'webapp\backend'
         SyncExtras    = @('dev')
         SyncOnStart  = $true
         Env           = @{ WEB_PORT = '10863' }
