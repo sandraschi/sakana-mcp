@@ -44,6 +44,19 @@ def test_discovery_endpoints_present() -> None:
         assert resp.json()["ok"] is True, path
 
 
+def test_status_has_repo_fields() -> None:
+    payload = client.get("/api/status").json()
+    assert payload["repo_root"]
+    assert payload["ai_scientist_v2"]
+
+
+def test_chat_stream_route_exists() -> None:
+    # No Ollama needed: the route must exist and answer SSE (possibly an error event).
+    resp = client.post("/api/llm/chat/stream", json={"model": "x", "prompt": "hi"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+
+
 def test_diagnostics_lists_tools() -> None:
     resp = client.get("/api/v1/diagnostics")
     assert resp.status_code == 200
