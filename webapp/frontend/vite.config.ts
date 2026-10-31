@@ -1,10 +1,10 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['goliath'],
+    allowedHosts: ["goliath"],
     host: "127.0.0.1",
     port: 10862,
     strictPort: true,
@@ -16,4 +16,3 @@ export default defineConfig({
     },
   },
 });
-

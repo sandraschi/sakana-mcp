@@ -11,7 +11,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -19,4 +19,3 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   }
   return (await res.json()) as T;
 }
-

@@ -570,6 +570,8 @@ def status() -> dict[str, Any]:
         "ok": True,
         "status": "running_or_completed" if stages else "idle",
         "runtime": runtime,
+        "repo_root": str(_repo_root()),
+        "ai_scientist_v2": str(_vendor_root()),
         "tree_health": {
             "good_nodes": total_good,
             "buggy_nodes": total_buggy,

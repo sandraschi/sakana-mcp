@@ -18,17 +18,20 @@ export function VaultPage() {
 
   const list = useQuery({
     queryKey: ["vault", "list", rel],
-    queryFn: () => apiGet<VaultList>(`/api/vault/list?rel=${encodeURIComponent(rel)}`)
+    queryFn: () =>
+      apiGet<VaultList>(`/api/vault/list?rel=${encodeURIComponent(rel)}`),
   });
 
   const reader = useMutation({
     mutationFn: (fileRel: string) =>
-      apiGet<VaultRead>(`/api/vault/read?rel=${encodeURIComponent(fileRel)}`)
+      apiGet<VaultRead>(`/api/vault/read?rel=${encodeURIComponent(fileRel)}`),
   });
 
   const breadcrumbs = useMemo(() => {
     const parts = rel.split(/[\\/]/).filter(Boolean);
-    const acc: Array<{ label: string; rel: string }> = [{ label: "vault", rel: "" }];
+    const acc: Array<{ label: string; rel: string }> = [
+      { label: "vault", rel: "" },
+    ];
     let cur = "";
     for (const p of parts) {
       cur = cur ? `${cur}/${p}` : p;
@@ -39,11 +42,16 @@ export function VaultPage() {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-      <Card title="Vault" subtitle="Browse research_vault artifacts" className="lg:col-span-2">
+      <Card
+        title="Vault"
+        subtitle="Browse research_vault artifacts"
+        className="lg:col-span-2"
+      >
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-          {breadcrumbs.map((b, idx) => (
+          {breadcrumbs.map((b) => (
             <button
-              key={`${b.rel}-${idx}`}
+              type="button"
+              key={b.rel}
               className="rounded-full border border-white/10 bg-white/5 px-3 py-1 hover:bg-white/10"
               onClick={() => {
                 setRel(b.rel);
@@ -63,6 +71,7 @@ export function VaultPage() {
           <div className="space-y-2">
             {(list.data?.entries ?? []).map((e) => (
               <button
+                type="button"
                 key={e.name}
                 className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm hover:bg-white/10"
                 onClick={() => {
@@ -78,7 +87,9 @@ export function VaultPage() {
                 }}
               >
                 <div className="truncate">
-                  <span className="text-slate-300">{e.type === "dir" ? "DIR" : "FILE"}</span>{" "}
+                  <span className="text-slate-300">
+                    {e.type === "dir" ? "DIR" : "FILE"}
+                  </span>{" "}
                   <span className="text-slate-100">{e.name}</span>
                 </div>
                 <div className="text-xs text-slate-400">
@@ -90,7 +101,11 @@ export function VaultPage() {
         )}
       </Card>
 
-      <Card title="Preview" subtitle={selectedFile || "Select a file"} className="lg:col-span-3">
+      <Card
+        title="Preview"
+        subtitle={selectedFile || "Select a file"}
+        className="lg:col-span-3"
+      >
         {reader.isPending ? (
           <div className="text-sm text-slate-300">Loading file...</div>
         ) : reader.isError ? (
@@ -100,10 +115,11 @@ export function VaultPage() {
             {reader.data.content}
           </pre>
         ) : (
-          <div className="text-sm text-slate-300">Pick an artifact to preview it.</div>
+          <div className="text-sm text-slate-300">
+            Pick an artifact to preview it.
+          </div>
         )}
       </Card>
     </div>
   );
 }
-

@@ -4,10 +4,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        slateGlass: "rgba(15, 23, 42, 0.55)"
-      }
-    }
+        slateGlass: "rgba(15, 23, 42, 0.55)",
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
-
