@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "text",
+        "text": "## Session Context (sakana-mcp)\nYou are working in sakana-mcp: FastMCP 3.4 stdio server (src/sakana_mcp/server.py, 8 tools) + FastAPI backend :10863 + Vite frontend :10862. Canonical loop: sakana_help -> research_library -> research_workflow_plan -> research_ideate -> research_execute -> research_status -> research_review. Verify with GET /api/health (expect {\"ok\": true} <1s) before UI work. End of work: ruff check src/ clean, tsc --noEmit clean, tree green."
+      }
+    ]
+  }
+}

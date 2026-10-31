@@ -1,0 +1,6 @@
+{
+  "name": "sakana-mcp",
+  "description": "Sakana AI Scientist v2 research control plane (ideate, Docker execute, status, review)",
+  "version": "0.1.0",
+  "hooks": "../hooks/hooks.json"
+}

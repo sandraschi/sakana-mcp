@@ -1,0 +1,12 @@
+# sakana-mcp — Cursor session context
+
+## Session Context (sakana-mcp)
+
+Before starting work: this repo is a FastMCP 3.4 stdio server (`src/sakana_mcp/server.py`,
+8 tools: sakana_help, research_ideate/execute/status/review/library/workflow_plan, sakana_shutdown)
+plus a FastAPI dashboard backend (`webapp/backend/app.py`, :10863) and a Vite frontend (:10862).
+Run `just serve` (or `webapp/start.ps1`) and probe `GET /api/health` (must answer
+`{"ok": true}` in <1s) before touching UI code.
+
+At end of work: `uv run ruff check src/`, `bun x tsc --noEmit` in webapp/frontend,
+and leave the tree green — never commit with a red gate.
