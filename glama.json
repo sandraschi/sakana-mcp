@@ -1,0 +1,18 @@
+{
+  "name": "sakana-mcp",
+  "description": "MCP server wrapping Sakana AI Scientist v2 for autonomous scientific research loops (ideate, Docker-sandboxed execute, status, review)",
+  "version": "0.1.0",
+  "author": "sandraschi",
+  "license": "MIT",
+  "repository": "https://github.com/sandraschi/sakana-mcp",
+  "tools": [
+    "sakana_help",
+    "research_ideate",
+    "research_execute",
+    "research_status",
+    "research_review",
+    "research_library",
+    "research_workflow_plan",
+    "sakana_shutdown"
+  ]
+}

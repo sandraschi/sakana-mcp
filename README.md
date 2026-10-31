@@ -1,4 +1,4 @@
-[![FastMCP Version](https://img.shields.io/badge/FastMCP-3.1.0-blue?style=flat-square&logo=python&logoColor=white)](https://github.com/sandraschi/fastmcp) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Built with Just](https://img.shields.io/badge/Built_with-Just-000000?style=flat-square&logo=gnu-bash&logoColor=white)](https://github.com/casey/just)
+[![FastMCP Version](https://img.shields.io/badge/FastMCP-3.4.5-blue?style=flat-square&logo=python&logoColor=white)](https://github.com/jlowin/fastmcp) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Built with Just](https://img.shields.io/badge/Built_with-Just-000000?style=flat-square&logo=gnu-bash&logoColor=white)](https://github.com/casey/just)
 
 ## sakana-mcp
 
@@ -14,6 +14,9 @@ MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research dir
 - `research_library/README.md`: sample research task catalog
 - `prompts/README.md`: reusable prompt templates
 - `skills/FASTMCP_3_1_SKILL.md`: FastMCP 3.1.0 operator skill card
+- `docs/ONBOARDING.md`: first-time setup (keys, Docker, vendor checkout) — read this before `just serve`
+
+> New here? Start with **`docs/ONBOARDING.md`** (15 min: keys → Docker → vendor → Go Live Checklist).
 
 ## Core Guarantees
 

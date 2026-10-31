@@ -1,0 +1,53 @@
+# sakana-mcp — llms-full.txt
+
+MCP server + webapp wrapping Sakana AI Scientist v2 (autonomous research loops).
+Ports: backend 10863 (FastAPI), frontend 10862 (Vite). Registry:
+mcp-central-docs/operations/WEBAPP_PORTS.md.
+
+## MCP tools (stdio via `python -m sakana_mcp`, 8 total)
+
+- sakana_help — tool catalog + canonical loop order (READ_ONLY).
+- research_ideate(codebase_hint?, workshop_file?, model="gemini-2.5-flash",
+  max_num_generations=5, num_reflections=3) — 5 hypotheses; mode
+  ai_scientist_v2 when vendored, else deterministic fallback.
+- research_execute(ideas_file?, idea_idx=0, num_workers=3, max_debug_depth=3,
+  allow_host_execution=False) — Docker-only (`scientist-executor` compose
+  service); logs to research_vault/execute_last_{stdout,stderr}.log.
+- research_status() — tree health (good/buggy nodes, stage progress).
+- research_review(pdf_path, model="gpt-4o-2024-11-20") — VLM figure/caption/
+  reference review → research_vault/<stem>.review_img_cap_ref.json.
+- research_library(domain?) — builtin SAMPLE_TASKS + research_library/tasks/*.json.
+- research_workflow_plan(task_id, num_workers=3) — 4-step guided plan.
+- sakana_shutdown(confirm=True) — graceful self-termination (~500 ms).
+
+All tools return `{"success": bool, "message": str, ...}` plus tool-specific data.
+
+## REST (webapp backend, http://127.0.0.1:10863)
+
+- GET /api/health — instant liveness probe `{"ok": true}` (<500 ms; no diagnostics).
+- GET /api/status — runtime mode, tree health, docker status, stages.
+- POST /api/ideate, POST /api/execute, GET /api/status, POST /api/review.
+- GET /api/vault/list?rel=, GET /api/vault/read?rel= (vault-scoped, path-checked).
+- GET /api/library/tasks?domain=, GET /api/workflow/plan?task_id=.
+- GET /api/skills — skill catalog (research-director).
+- GET /api/llm/providers (Ollama probe), /api/llm/discover (Ollama+LM Studio),
+  /api/llm/models?provider=, POST /api/llm/chat (Ollama proxy), /api/llm/onboarding.
+- GET /api/v1/diagnostics — tool list + versions + health (CUA smoke).
+- POST /api/shutdown?confirm=true — orderly exit (launcher calls this first).
+
+## Config (env)
+
+- GEMINI_API_KEY — live ideation/review (else fallback mode; see .env.example).
+- S2_API_KEY — Semantic Scholar literature paths.
+- RESEARCH_VAULT_PATH (default ./research_vault), AI_SCIENTIST_V2_PATH
+  (default ./vendor/ai-scientist-v2, gitignored upstream clone).
+
+## Architecture
+
+- `src/sakana_mcp/server.py` — FastMCP stdio server (8 tools, annotations).
+- `webapp/backend/app.py` — FastAPI dashboard backend (CORS: localhost/loopback
+  + Tauri schemes + LAN/Tailscale regex).
+- `webapp/frontend/` — React+Vite+Tailwind dashboard (same-origin /api via proxy).
+- `native/` + `src-tauri/` — Tauri shell (backend.rs free_port + backend-status).
+- `docker-compose.yml` — sakana-mcp + scientist-executor (GPU reservation).
+- `research_vault/` — run artifacts, manifests, logs (gitignored).

@@ -1,0 +1,10 @@
+# sakana-mcp — llms.txt
+
+MCP server wrapping Sakana AI Scientist v2 for autonomous scientific research
+loops (ideate → execute → status → review, Docker-sandboxed).
+
+- Full tool/endpoint/port reference: `llms-full.txt`
+- Human quick start: `README.md`
+- First-time setup (keys, Docker, vendor checkout): `docs/ONBOARDING.md`
+- Researcher workflow: `docs/researcher/README.md`
+- Operations (Docker, safety, runbooks): `docs/operations/README.md`
