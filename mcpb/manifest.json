@@ -17,11 +17,13 @@
     }
   },
   "tools": [
-    { "name": "research_ideate", "description": "research_ideate" },
-    { "name": "research_execute", "description": "research_execute" },
-    { "name": "research_status", "description": "research_status" },
-    { "name": "research_review", "description": "research_review" },
-    { "name": "research_library", "description": "research_library" },
-    { "name": "research_workflow_plan", "description": "research_workflow_plan" }
+    { "name": "sakana_help", "description": "List available tools and the canonical research loop order" },
+    { "name": "research_ideate", "description": "Generate 5 research hypotheses via Progressive Agentic Tree Search" },
+    { "name": "research_execute", "description": "Launch AI Scientist experiment manager in Docker sandbox" },
+    { "name": "research_status", "description": "Monitor tree health from latest run artifacts" },
+    { "name": "research_review", "description": "Run VLM feedback loop over manuscript figures/captions" },
+    { "name": "research_library", "description": "List sample and custom research tasks" },
+    { "name": "research_workflow_plan", "description": "Build a guided agentic workflow plan for a task" },
+    { "name": "sakana_shutdown", "description": "Gracefully stop the MCP server process" }
   ]
 }

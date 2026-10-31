@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  ci:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Python lint
+        run: uv run ruff check src/ webapp/backend tests/
+      - name: Python format check
+        run: uv run ruff format src/ webapp/backend tests/ --check
+      - name: Python tests
+        run: uv run --extra test pytest tests/ -q
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Frontend typecheck
+        working-directory: webapp/frontend
+        run: bun x tsc --noEmit
+      - name: Frontend lint (Biome)
+        working-directory: webapp/frontend
+        run: bun x @biomejs/biome ci .

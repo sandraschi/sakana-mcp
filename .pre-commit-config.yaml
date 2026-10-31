@@ -16,7 +16,7 @@ repos:
         pass_filenames: false
       - id: no-bak-staged
         name: no timestamped .bak files
-        entry: powershell.exe -NoProfile -Command "$bad = git diff --cached --name-only | Where-Object { $_ -match '\.bak(\.|$)' }; if ($bad) { Write-Host ('Refusing .bak files: ' + ($bad -join ', ')); exit 1 }"
+        entry: 'powershell.exe -NoProfile -Command "$bad = git diff --cached --name-only | Where-Object { $_ -match ''\.bak(\.|$)'' }; if ($bad) { Write-Host (''Refusing .bak files: '' + ($bad -join '', '')); exit 1 }"'
         language: system
         always_run: true
         pass_filenames: false
