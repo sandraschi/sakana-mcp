@@ -7,33 +7,61 @@ import 'scripts/just/fleet.just'
 default:
     @just --list
 
+# --- Serve ---
+
+# Start backend + frontend via the fleet launcher (run once, certifies the launcher)
+serve:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\webapp\start.ps1"
+
+# Backend only (probes /api/health, fails the run when unhealthy)
+serve-backend:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\webapp\start.ps1" -BackendOnly
+
 # --- Quality ---
 
-# Execute Ruff SOTA v13.1 linting
+# Execute Ruff lint + format check (repo root only; frontend has its own biome gate)
 lint:
-    Set-Location '{{justfile_directory()}}'; uv run ruff check .; Set-Location '{{justfile_directory()}}\webapp\frontend'; npx @biomejs/biome ci .
+    uv run ruff check .; uv run ruff format . --check
 
-# Execute Ruff SOTA v13.1 fix and formatting
+# Ruff autofix + format (repo root) and Biome write (frontend)
 fix:
-    Set-Location '{{justfile_directory()}}'; uv run ruff check . --fix --unsafe-fixes; uv run ruff format .; Set-Location '{{justfile_directory()}}\webapp\frontend'; npx @biomejs/biome check --write .
+    uv run ruff check . --fix --unsafe-fixes; uv run ruff format .; cd "{{justfile_directory()}}\webapp\frontend"; npx @biomejs/biome check --write .
+
+# Typecheck: tsc for the frontend (pyright is not in dev extras yet — see issue)
+check:
+    cd "{{justfile_directory()}}\webapp\frontend"; npx tsc --noEmit
 
 # --- Hardening ---
 
 # Execute Bandit security audit
 check-sec:
-    Set-Location '{{justfile_directory()}}'
     uv run bandit -r src/
 
 # Execute safety audit of dependencies
 audit-deps:
-    Set-Location '{{justfile_directory()}}'
     uv run safety check
 
 # --- Testing ---
 
+# Fast backend smoke tests (no Docker required)
+test:
+    uv run pytest tests/ -q
+
 # Run e2e Playwright tests
 e2e:
-    powershell.exe -NoProfile -NoProfile -ExecutionPolicy Bypass -File "D:\Dev\repos\mcp-central-docs\scripts\playwright-audit.ps1" -RepoPath "{{justfile_directory()}}"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\Dev\repos\mcp-central-docs\scripts\playwright-audit.ps1" -RepoPath "{{justfile_directory()}}"
+
+# Pre-Tauri browser walk (requires running stack: just serve first)
+cua-webapp-test:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\scripts\cua-webapp-test.py"
+
+# --- Packaging ---
+
+# Pack the Claude Desktop (.mcpb) bundle via the fleet shim pipeline
+mcpb-pack:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\mcpb\pack.ps1"
+
+# --- Bootstrap ---
 
 # Bootstrap: install dev deps + pre-commit hook
 bootstrap:

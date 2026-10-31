@@ -9,9 +9,9 @@
     "entry_point": "src/sakana_mcp/server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run","--directory","${PWD}","python","-m","sakana_mcp"],
+      "args": ["run","--directory","${__dirname}","python","-m","sakana_mcp"],
       "env": {
-        "PYTHONPATH": "${PWD}/src",
+        "PYTHONPATH": "${__dirname}/src",
         "PYTHONUNBUFFERED": "1"
       }
     }
