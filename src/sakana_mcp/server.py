@@ -250,7 +250,7 @@ async def research_ideate(
     ideation_mode = "fallback"
     ideation_error: str | None = None
 
-    ctx.info(
+    await ctx.info(
         "research_ideate invoked",
         extra={
             "codebase_hint_present": bool(codebase_hint),
@@ -411,7 +411,7 @@ async def research_execute(
         }
 
     if not allow_host_execution:
-        ctx.info("research_execute enforcing Docker-only mode")
+        await ctx.info("research_execute enforcing Docker-only mode")
 
     selected_ideas = Path(ideas_file).resolve() if ideas_file else _default_ideas_path(vault)
     if not selected_ideas.exists():

@@ -59,7 +59,7 @@ cua-webapp-test:
 
 # Pack the Claude Desktop (.mcpb) bundle via the fleet shim pipeline
 mcpb-pack:
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\mcpb\pack.ps1"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\scripts\mcpb-pack.ps1"
 
 # --- Bootstrap ---
 

@@ -37,3 +37,11 @@ ignore = ["S101", "B008", "S106", "RUF012", "S603", "S607", "S324", "E402", "E50
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = true
