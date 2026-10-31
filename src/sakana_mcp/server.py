@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
 from fastmcp import Context, FastMCP
+from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sakana_mcp.library import SAMPLE_TASKS, load_custom_tasks, task_to_dict
 from sakana_mcp.warehouse import append_manifest, ensure_warehouse
+
+logger = logging.getLogger("sakana-mcp")
 
 
 def _env_required(name: str) -> str:
@@ -182,6 +186,7 @@ async def llm_providers(request: Request) -> JSONResponse:
                 if name:
                     models.append(name)
     except Exception:
+        logger.exception("sakana-mcp: Ollama provider probe failed")
         pass
     return JSONResponse({"providers": [{"name": "ollama", "models": models}]})
 
@@ -202,18 +207,25 @@ async def llm_chat(request: Request) -> JSONResponse:
             data = r.json()
             return JSONResponse({"response": data.get("response", "")})
     except Exception as e:
+        logger.exception("sakana-mcp: Ollama chat proxy failed")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True})
 async def research_ideate(
     ctx: Context,
     *,
-    codebase_hint: str | None = None,
-    workshop_file: str | None = None,
-    model: str = "gemini-2.5-flash",
-    max_num_generations: int = 5,
-    num_reflections: int = 3,
+    codebase_hint: Annotated[
+        str | None, Field(description="Hint about the repo or focus area shaping the hypotheses")
+    ] = None,
+    workshop_file: Annotated[
+        str | None, Field(description="Markdown workshop file consumed by AI Scientist ideation")
+    ] = None,
+    model: Annotated[
+        str, Field(description="Model string passed to the AI Scientist ideation client")
+    ] = "gemini-2.5-flash",
+    max_num_generations: Annotated[int, Field(ge=1, le=50, description="Number of ideas to generate")] = 5,
+    num_reflections: Annotated[int, Field(ge=1, le=10, description="Reflection rounds per idea")] = 3,
 ) -> dict[str, Any]:
     """RESEARCH_IDEATE - Generate 5 research hypotheses via Progressive Agentic Tree Search.
 
@@ -222,16 +234,14 @@ async def research_ideate(
     Ideation is kept as a dedicated tool because it is frequently invoked and should remain
     stable while internal tree-search implementations evolve.
 
-    Args:
-        ctx: FastMCP context for logging and progress reporting.
-        codebase_hint: Optional hint about the current repo / focus area.
-        workshop_file: Optional markdown file path used by AI Scientist ideation.
-        model: Model string passed to AI Scientist ideation client.
-        max_num_generations: Number of ideas to generate.
-        num_reflections: Number of reflection rounds per idea.
+    ## Return Format
+    `{"success": bool, "message": str, "result": {"hypotheses": [...], "count": int,
+    "mode": str}, "research_vault": str, ...}` — `mode` is `ai_scientist_v2` when the
+    vendored ideation module ran, else `fallback` (deterministic sample hypotheses).
 
-    Returns:
-        Dict containing 5 hypotheses and export paths for the research vault.
+    ## Examples
+    `research_ideate(codebase_hint="robust pruning for tree search")`
+    `research_ideate(workshop_file="research_vault/my_workshop.md", max_num_generations=10)`
     """
     vault = _research_vault_path()
     vault.mkdir(parents=True, exist_ok=True)
@@ -257,8 +267,8 @@ async def research_ideate(
             if str(vendor) not in sys.path:
                 sys.path.insert(0, str(vendor))
 
-            from ai_scientist.llm import create_client  # type: ignore
-            from ai_scientist.perform_ideation_temp_free import (  # type: ignore
+            from ai_scientist.llm import create_client  # type: ignore[import-not-found]
+            from ai_scientist.perform_ideation_temp_free import (  # type: ignore[import-not-found]
                 generate_temp_free_idea,
             )
 
@@ -330,6 +340,7 @@ async def research_ideate(
 
     return {
         "success": True,
+        "message": f"Generated {len(hypotheses)} hypotheses in {ideation_mode} mode.",
         "result": {
             "hypotheses": hypotheses,
             "count": len(hypotheses),
@@ -348,30 +359,36 @@ async def research_ideate(
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True})
 async def research_execute(
     ctx: Context,
     *,
-    ideas_file: str | None = None,
-    idea_idx: int = 0,
-    num_workers: int = 3,
-    max_debug_depth: int = 3,
-    allow_host_execution: bool = False,
+    ideas_file: Annotated[
+        str | None, Field(description="Ideas JSON path; defaults to the vault default_workshop.json")
+    ] = None,
+    idea_idx: Annotated[int, Field(ge=0, description="Index of the idea entry to execute")] = 0,
+    num_workers: Annotated[int, Field(ge=1, le=16, description="Parallel branches for tree search")] = 3,
+    max_debug_depth: Annotated[int, Field(ge=0, le=10, description="Max debug retries for buggy branches")] = 3,
+    allow_host_execution: Annotated[
+        bool, Field(description="Safety valve; host execution stays blocked unless true")
+    ] = False,
 ) -> dict[str, Any]:
     """RESEARCH_EXECUTE - Launch AI Scientist experiment manager in Docker sandbox.
 
-    Args:
-        ctx: FastMCP context.
-        ideas_file: Path to generated ideas JSON. Defaults to research_vault default.
-        idea_idx: Index of the idea entry to execute.
-        num_workers: Parallel branches for tree search.
-        max_debug_depth: Max debug retries for buggy branches.
-        allow_host_execution: Safety valve; host execution is blocked unless explicitly enabled.
+    ## Return Format
+    `{"success": bool, "message": str, "return_code": int, "mode": "docker_only",
+    "logs": {"stdout": str, "stderr": str}, ...}` — `success` mirrors the Docker
+    exit code; logs are persisted under `research_vault/`.
+
+    ## Examples
+    `research_execute()` — runs the default ideas file with 3 workers.
+    `research_execute(ideas_file="research_vault/my_workshop.json", idea_idx=1,
+    num_workers=6, max_debug_depth=5)`
     """
     vault = _research_vault_path()
     vault.mkdir(parents=True, exist_ok=True)
     vendor = _vendor_root()
-    compose_path = Path("./docker-compose.yml").resolve()
+    compose_path = _REPO_ROOT / "docker-compose.yml"
 
     if not compose_path.exists():
         return {
@@ -487,9 +504,18 @@ async def research_execute(
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
 async def research_status(ctx: Context) -> dict[str, Any]:
-    """RESEARCH_STATUS - Monitor tree health from latest run artifacts."""
+    """RESEARCH_STATUS - Monitor tree health from latest run artifacts.
+
+    ## Return Format
+    `{"success": bool, "message": str, "status": "idle" | "running_or_completed",
+    "tree_health": {"good_nodes": int, "buggy_nodes": int,
+    "ratio_good_to_buggy": float | None}, "stages": [...]}`.
+
+    ## Examples
+    `research_status()` — one call, no arguments.
+    """
     vault = _research_vault_path()
     await ctx.report_progress(1, 2, "Scanning run artifacts")
     stage_summaries = _summarize_stage_progress(vault)
@@ -501,6 +527,7 @@ async def research_status(ctx: Context) -> dict[str, Any]:
     await ctx.report_progress(2, 2, "Status prepared")
     return {
         "success": True,
+        "message": f"Tree health: {total_good} good / {total_buggy} buggy nodes across {len(stage_summaries)} stages.",
         "status": status,
         "tree_health": {
             "good_nodes": total_good,
@@ -512,9 +539,23 @@ async def research_status(ctx: Context) -> dict[str, Any]:
     }
 
 
-@mcp.tool()
-async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2024-11-20") -> dict[str, Any]:
-    """RESEARCH_REVIEW - Run VLM feedback loop over manuscript figures/captions."""
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True})
+async def research_review(
+    ctx: Context,
+    *,
+    pdf_path: Annotated[str, Field(description="Absolute path to the manuscript PDF to review")],
+    model: Annotated[str, Field(description="VLM model string for the review client")] = "gpt-4o-2024-11-20",
+) -> dict[str, Any]:
+    """RESEARCH_REVIEW - Run VLM feedback loop over manuscript figures/captions.
+
+    ## Return Format
+    `{"success": bool, "message": str, "model": str, "pdf_path": str,
+    "review_path": str, "figures_reviewed": int, ...}` — the full payload is
+    persisted to `research_vault/<stem>.review_img_cap_ref.json`.
+
+    ## Examples
+    `research_review(pdf_path="research_vault/runs/workspace/report.pdf")`
+    """
     vault = _research_vault_path()
     vault.mkdir(parents=True, exist_ok=True)
     vendor = _vendor_root()
@@ -530,8 +571,8 @@ async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2
         sys.path.insert(0, str(vendor))
 
     await ctx.report_progress(1, 3, "Initializing VLM client")
-    from ai_scientist.perform_vlm_review import perform_imgs_cap_ref_review  # type: ignore
-    from ai_scientist.vlm import create_client  # type: ignore
+    from ai_scientist.perform_vlm_review import perform_imgs_cap_ref_review  # type: ignore[import-not-found]
+    from ai_scientist.vlm import create_client  # type: ignore[import-not-found]
 
     client, client_model = create_client(model)
     await ctx.report_progress(2, 3, "Running figure-caption-reference review")
@@ -547,6 +588,7 @@ async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2
     await ctx.report_progress(3, 3, "Review artifacts saved")
     return {
         "success": True,
+        "message": f"Reviewed {len(review_payload)} figures in {review_pdf.name}.",
         "model": client_model,
         "pdf_path": str(review_pdf),
         "review_path": str(out_path),
@@ -555,9 +597,23 @@ async def research_review(ctx: Context, *, pdf_path: str, model: str = "gpt-4o-2
     }
 
 
-@mcp.tool()
-async def research_library(ctx: Context, *, domain: str | None = None) -> dict[str, Any]:
-    """RESEARCH_LIBRARY - List sample and custom research tasks."""
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+async def research_library(
+    ctx: Context,
+    *,
+    domain: Annotated[str | None, Field(description="Case-insensitive domain filter (e.g. machine-learning)")] = None,
+) -> dict[str, Any]:
+    """RESEARCH_LIBRARY - List sample and custom research tasks.
+
+    ## Return Format
+    `{"success": bool, "message": str, "count": int, "domains": [...],
+    "tasks": [...]}` — merges builtin `SAMPLE_TASKS` with custom
+    `research_library/tasks/*.json` entries.
+
+    ## Examples
+    `research_library()` — all tasks.
+    `research_library(domain="agent-systems")` — filtered tasks.
+    """
     _ = ctx
     root = _repo_root()
     builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
@@ -567,15 +623,29 @@ async def research_library(ctx: Context, *, domain: str | None = None) -> dict[s
         merged = [item for item in merged if str(item.get("domain", "")).lower() == domain.lower()]
     return {
         "success": True,
+        "message": f"Found {len(merged)} research tasks.",
         "count": len(merged),
         "tasks": merged,
         "domains": sorted({str(item.get("domain", "unknown")) for item in merged}),
     }
 
 
-@mcp.tool()
-async def research_workflow_plan(ctx: Context, *, task_id: str, num_workers: int = 3) -> dict[str, Any]:
-    """RESEARCH_WORKFLOW_PLAN - Build a guided agentic workflow plan for a task."""
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+async def research_workflow_plan(
+    ctx: Context,
+    *,
+    task_id: Annotated[str, Field(description="Task id from research_library (e.g. ml_ablation_robustness)")],
+    num_workers: Annotated[int, Field(ge=1, le=16, description="Workers for the execution step")] = 3,
+) -> dict[str, Any]:
+    """RESEARCH_WORKFLOW_PLAN - Build a guided agentic workflow plan for a task.
+
+    ## Return Format
+    `{"success": bool, "message": str, "task": {...},
+    "workflow_plan": [{"step": int, "tool": str, "args": {...}, "goal": str}]}`.
+
+    ## Examples
+    `research_workflow_plan(task_id="ml_ablation_robustness")`
+    """
     _ = ctx
     builtins = [task_to_dict(t) for t in SAMPLE_TASKS]
     all_tasks = builtins + load_custom_tasks(_repo_root())
@@ -615,9 +685,73 @@ async def research_workflow_plan(ctx: Context, *, task_id: str, num_workers: int
     ]
     return {
         "success": True,
+        "message": f"Workflow plan for '{task_id}' ready: 4 steps from ideation to review.",
         "task": selected,
         "workflow_plan": plan,
     }
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+async def sakana_help(ctx: Context) -> dict[str, Any]:
+    """SAKANA_HELP - List available tools and the canonical research loop order.
+
+    ## Return Format
+    `{"success": bool, "message": str, "server": str, "loop": [...],
+    "tools": [{"name": str, "description": str}]}`.
+
+    ## Examples
+    `sakana_help()` — one call, no arguments.
+    """
+    _ = ctx
+    return {
+        "success": True,
+        "message": "Sakana research loop: library -> workflow_plan -> ideate -> execute -> status -> review.",
+        "server": "sakana-mcp",
+        "loop": [
+            "research_library",
+            "research_workflow_plan",
+            "research_ideate",
+            "research_execute",
+            "research_status",
+            "research_review",
+        ],
+        "tools": [
+            {"name": "sakana_help", "description": "This catalog."},
+            {"name": "research_ideate", "description": "Generate 5 hypotheses."},
+            {"name": "research_execute", "description": "Run experiments in Docker."},
+            {"name": "research_status", "description": "Monitor tree health."},
+            {"name": "research_review", "description": "VLM review of a manuscript PDF."},
+            {"name": "research_library", "description": "Browse sample research tasks."},
+            {"name": "research_workflow_plan", "description": "Guided step plan for a task."},
+            {"name": "sakana_shutdown", "description": "Graceful self-termination."},
+        ],
+    }
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False})
+async def sakana_shutdown(
+    ctx: Context,
+    *,
+    confirm: Annotated[bool, Field(description="Must be true — acknowledges the server process will exit")] = False,
+) -> dict[str, Any]:
+    """SAKANA_SHUTDOWN - Gracefully stop the MCP server process (self-termination).
+
+    ## Return Format
+    `{"success": bool, "message": str}` — responds first, then the process exits
+    ~500 ms later so in-flight responses flush.
+
+    ## Examples
+    `sakana_shutdown(confirm=True)`
+    """
+    _ = ctx
+    if not confirm:
+        return {
+            "success": False,
+            "message": "Shutdown requires confirm=True to prevent accidental termination.",
+        }
+    loop = asyncio.get_running_loop()
+    loop.call_later(0.5, lambda: os._exit(0))
+    return {"success": True, "message": "Sakana MCP server shutting down in ~500 ms."}
 
 
 def main() -> None:

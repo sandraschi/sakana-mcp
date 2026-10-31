@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -10,6 +11,8 @@ import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("sakana-webapp")
 
 
 def _repo_root() -> Path:
@@ -76,6 +79,7 @@ def _summarize_stage_progress(vault: Path) -> list[dict[str, Any]]:
         try:
             payload = _safe_load_json(file_path)
         except Exception:
+            logger.warning("sakana webapp: skipping unreadable stage progress file %s", file_path)
             continue
         summaries.append(
             {
@@ -102,13 +106,13 @@ def _docker_diagnostics() -> dict[str, Any]:
     }
 
     try:
-        subprocess.run(["docker", "--version"], capture_output=True, text=True, check=True)
+        subprocess.run(["docker", "--version"], capture_output=True, text=True, check=True, timeout=5)
         diag["docker_cli_available"] = True
     except Exception:
         return diag
 
     try:
-        subprocess.run(["docker", "info"], capture_output=True, text=True, check=True)
+        subprocess.run(["docker", "info"], capture_output=True, text=True, check=True, timeout=5)
         diag["docker_daemon_reachable"] = True
     except Exception:
         return diag
@@ -122,6 +126,7 @@ def _docker_diagnostics() -> dict[str, Any]:
             capture_output=True,
             text=True,
             check=False,
+            timeout=8,
         )
         lines = [line.strip() for line in (ps.stdout or "").splitlines() if line.strip()]
         entries: list[dict[str, Any]] = []
@@ -133,6 +138,7 @@ def _docker_diagnostics() -> dict[str, Any]:
                 elif isinstance(parsed, list):
                     entries.extend([item for item in parsed if isinstance(item, dict)])
             except Exception:
+                logger.warning("sakana webapp: skipping unparsable compose ps line")
                 continue
 
         by_name = {str(item.get("Service", "")): item for item in entries}
@@ -147,6 +153,7 @@ def _docker_diagnostics() -> dict[str, Any]:
                 "state": state,
             }
     except Exception:
+        logger.warning("sakana webapp: docker compose ps status probe failed")
         pass
 
     return diag
@@ -170,7 +177,15 @@ app = FastAPI(title="sakana-mcp webapp backend", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:10862", "http://localhost:10862"],
+    allow_origins=[
+        "http://127.0.0.1:10862",
+        "http://localhost:10862",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ],
+    # Fleet LAN/Tailscale access: any 192.168.x.x / 10.x.x.x / 100.x.x.x (Tailscale) host.
+    allow_origin_regex=r"https?://((192\.168\.\d{1,3}\.\d{1,3})|(10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(100\.\d{1,3}\.\d{1,3}\.\d{1,3})|(localhost|127\.0\.0\.1))(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -195,6 +210,7 @@ class ExecuteRequest(BaseModel):
 class ReviewRequest(BaseModel):
     pdf_path: str
     model: str = "gpt-4o-2024-11-20"
+
 
 SAMPLE_TASKS: list[dict[str, Any]] = [
     {
@@ -225,6 +241,7 @@ SAMPLE_TASKS: list[dict[str, Any]] = [
     },
 ]
 
+
 def _load_custom_tasks() -> list[dict[str, Any]]:
     lib_dir = _repo_root() / "research_library" / "tasks"
     if not lib_dir.exists():
@@ -234,20 +251,149 @@ def _load_custom_tasks() -> list[dict[str, Any]]:
         try:
             tasks.append(_safe_load_json(item))
         except Exception:
+            logger.warning("sakana webapp: skipping unreadable library task file %s", item)
             continue
     return tasks
 
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    vault = _research_vault_path()
+    # Liveness probe: MUST respond in <500ms. Fleet launcher polls with a
+    # 2s per-request timeout, so no docker/file-heavy diagnostics here.
+    # Full diagnostics live on /api/status (docker, tree health).
+    return {"ok": True}
+
+
+@app.post("/api/shutdown")
+def shutdown(confirm: bool = False) -> dict[str, Any]:
+    """Orderly exit: the fleet launcher calls this before restarting the service."""
+    if not confirm:
+        return {"ok": False, "message": "Shutdown requires confirm=true."}
+    import threading
+
+    def _exit() -> None:
+        import time
+
+        time.sleep(0.5)
+        os._exit(0)
+
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"ok": True, "message": "Sakana webapp backend shutting down in ~500 ms."}
+
+
+@app.get("/api/v1/diagnostics")
+def diagnostics() -> dict[str, Any]:
+    """CUA-NSIS smoke surface: tool list, versions, and backend health in one call."""
     return {
         "ok": True,
+        "server": "sakana-mcp",
+        "version": "0.1.0",
         "repo_root": str(_repo_root()),
-        "research_vault": str(vault),
-        "ai_scientist_v2": str(_vendor_root()),
-        "runtime": _runtime_mode(vault),
+        "mcp_tools": [
+            "sakana_help",
+            "research_ideate",
+            "research_execute",
+            "research_status",
+            "research_review",
+            "research_library",
+            "research_workflow_plan",
+            "sakana_shutdown",
+        ],
+        "rest_routes": [
+            "/api/health",
+            "/api/status",
+            "/api/ideate",
+            "/api/execute",
+            "/api/review",
+            "/api/vault/list",
+            "/api/vault/read",
+            "/api/library/tasks",
+            "/api/workflow/plan",
+            "/api/skills",
+            "/api/llm/providers",
+            "/api/llm/discover",
+            "/api/llm/models",
+            "/api/llm/chat",
+            "/api/llm/onboarding",
+            "/api/v1/diagnostics",
+            "/api/shutdown",
+        ],
+        "runtime": _runtime_mode(_research_vault_path()),
         "docker": _docker_diagnostics(),
+    }
+
+
+@app.get("/api/skills")
+def skills() -> dict[str, Any]:
+    """Skill catalog for skill-first chat clients."""
+    return {
+        "ok": True,
+        "skills": [
+            {
+                "name": "research-director",
+                "description": "Coordinate ideate -> execute -> status -> review with sandbox boundaries.",
+                "workflow": [
+                    "research_library",
+                    "research_workflow_plan",
+                    "research_ideate",
+                    "research_execute",
+                    "research_status",
+                    "research_review",
+                ],
+            }
+        ],
+    }
+
+
+@app.get("/api/llm/discover")
+def llm_discover() -> dict[str, Any]:
+    """Auto-detect local LLM providers (Ollama :11434, LM Studio :1234)."""
+    import httpx
+
+    providers: list[dict[str, Any]] = []
+    for name, base in (("ollama", "http://127.0.0.1:11434"), ("lmstudio", "http://127.0.0.1:1234")):
+        path = "/api/tags" if name == "ollama" else "/v1/models"
+        try:
+            resp = httpx.get(base + path, timeout=2.0)
+            detected = resp.status_code == 200
+        except Exception:
+            detected = False
+        providers.append({"name": name, "base_url": base, "detected": detected, "local": True, "free": True})
+    return {"ok": True, "providers": providers}
+
+
+@app.get("/api/llm/models")
+def llm_models(provider: str = "ollama") -> dict[str, Any]:
+    """Model list for a provider: live when reachable, curated fallback otherwise."""
+    import httpx
+
+    base = "http://127.0.0.1:1234" if provider == "lmstudio" else "http://127.0.0.1:11434"
+    path = "/v1/models" if provider == "lmstudio" else "/api/tags"
+    try:
+        resp = httpx.get(base + path, timeout=3.0)
+        resp.raise_for_status()
+        payload = resp.json()
+        if provider == "lmstudio":
+            models = [m.get("id", "") for m in payload.get("data", []) if m.get("id")]
+        else:
+            models = [m.get("name", "") for m in payload.get("models", []) if m.get("name")]
+        return {"ok": True, "provider": provider, "models": models, "live": True}
+    except Exception as exc:
+        logger.warning("sakana webapp: llm models probe failed for %s: %s", provider, exc)
+        return {"ok": True, "provider": provider, "models": ["gemma3:1b"], "live": False}
+
+
+@app.get("/api/llm/onboarding")
+def llm_onboarding() -> dict[str, Any]:
+    """Fresh-install starter facts for the under-hero onboarding cue."""
+    return {
+        "ok": True,
+        "steps": [
+            "Set GEMINI_API_KEY for live ideation (else deterministic fallback hypotheses).",
+            "Run docker compose up --build for the sandboxed executor.",
+            "Pick a task in Library, generate a plan, ideate, execute, monitor status.",
+        ],
+        "recommended_path": "library -> workflow_plan -> ideate -> execute -> status -> review",
     }
 
 
@@ -341,7 +487,11 @@ def ideate(req: IdeateRequest) -> dict[str, Any]:
         "mode": mode,
         "ideation_error": ideation_error,
         "hypotheses": hypotheses,
-        "ideas_json_path": str((vault / (Path(req.workshop_file).stem + ".json")) if req.workshop_file else (vault / "default_workshop.json")),
+        "ideas_json_path": str(
+            (vault / (Path(req.workshop_file).stem + ".json"))
+            if req.workshop_file
+            else (vault / "default_workshop.json")
+        ),
         "research_vault": str(vault),
     }
 
@@ -397,9 +547,7 @@ def execute(req: ExecuteRequest) -> dict[str, Any]:
     completed = subprocess.run(cmd, capture_output=True, text=True, check=False)
     (vault / "execute_last_stdout.log").write_text(completed.stdout or "", encoding="utf-8")
     (vault / "execute_last_stderr.log").write_text(completed.stderr or "", encoding="utf-8")
-    (vault / "execute_last_request.json").write_text(
-        json.dumps(req.model_dump(), indent=2), encoding="utf-8"
-    )
+    (vault / "execute_last_request.json").write_text(json.dumps(req.model_dump(), indent=2), encoding="utf-8")
 
     return {
         "ok": completed.returncode == 0,
@@ -546,4 +694,3 @@ def workflow_plan(task_id: str, num_workers: int = 3) -> dict[str, Any]:
         },
     ]
     return {"ok": True, "task": selected, "plan": plan}
-

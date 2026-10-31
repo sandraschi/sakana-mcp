@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("sakana-mcp")
 
 
 @dataclass(frozen=True)
@@ -100,5 +103,6 @@ def load_custom_tasks(root: Path) -> list[dict[str, Any]]:
         try:
             tasks.append(json.loads(item.read_text(encoding="utf-8")))
         except Exception:
+            logger.warning("sakana-mcp: skipping unreadable custom task file %s", item)
             continue
     return tasks
