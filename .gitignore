@@ -1,3 +1,11 @@
+# Reports (regenerable audit snapshots, never commit)
+reports/
+
+# MCPB bundles + timestamped batch-edit backups
+*.mcpb
+*.bak
+*.bak.*
+
 # Python
 __pycache__/
 *.py[cod]
@@ -14,6 +22,7 @@ webapp/frontend/dist/
 
 # Local artifacts and runtime state
 research_vault/
+logs/
 webapp/.env
 webapp/backend/.env
 .env

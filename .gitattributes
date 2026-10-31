@@ -1,0 +1,6 @@
+# Fleet LF normalization — check out with LF, commit with LF.
+* text=auto eol=lf
+*.ps1 text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
