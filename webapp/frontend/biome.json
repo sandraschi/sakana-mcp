@@ -3,10 +3,18 @@
   "vcs": {
     "enabled": false,
     "clientKind": "git",
-    "useIgnoreFile": true
+    "useIgnoreFile": false
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": [
+      "src/**/*",
+      "e2e/**/*",
+      "biome.json",
+      "package.json",
+      "tsconfig.json",
+      "*.config.*"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -15,7 +23,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "recommended": true
     }
   },
   "javascript": {
