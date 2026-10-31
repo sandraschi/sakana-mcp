@@ -23,7 +23,12 @@ type TaskResponse = {
 type PlanResponse = {
   ok: boolean;
   task: Task;
-  plan: Array<{ step: number; tool: string; args: Record<string, unknown>; goal: string }>;
+  plan: Array<{
+    step: number;
+    tool: string;
+    args: Record<string, unknown>;
+    goal: string;
+  }>;
 };
 
 export function LibraryPage() {
@@ -34,21 +39,29 @@ export function LibraryPage() {
     queryKey: ["library", domain],
     queryFn: () =>
       apiGet<TaskResponse>(
-        `/api/library/tasks${domain ? `?domain=${encodeURIComponent(domain)}` : ""}`
+        `/api/library/tasks${domain ? `?domain=${encodeURIComponent(domain)}` : ""}`,
       ),
   });
 
   const plan = useQuery({
     queryKey: ["workflow-plan", taskId],
-    queryFn: () => apiGet<PlanResponse>(`/api/workflow/plan?task_id=${encodeURIComponent(taskId)}`),
+    queryFn: () =>
+      apiGet<PlanResponse>(
+        `/api/workflow/plan?task_id=${encodeURIComponent(taskId)}`,
+      ),
     enabled: Boolean(taskId),
   });
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-      <Card title="Task Library" subtitle="Sample and custom research missions" className="lg:col-span-3">
+      <Card
+        title="Task Library"
+        subtitle="Sample and custom research missions"
+        className="lg:col-span-3"
+      >
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
+            type="button"
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs hover:bg-white/10"
             onClick={() => setDomain("")}
           >
@@ -56,6 +69,7 @@ export function LibraryPage() {
           </button>
           {(tasks.data?.domains ?? []).map((d) => (
             <button
+              type="button"
               key={d}
               className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs hover:bg-white/10"
               onClick={() => setDomain(d)}
@@ -73,6 +87,7 @@ export function LibraryPage() {
           <div className="space-y-3">
             {(tasks.data?.tasks ?? []).map((t) => (
               <button
+                type="button"
                 key={t.task_id}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-left hover:bg-white/10"
                 onClick={() => setTaskId(t.task_id)}
@@ -84,16 +99,24 @@ export function LibraryPage() {
                   </div>
                 </div>
                 <div className="text-sm text-slate-200">{t.summary}</div>
-                <div className="mt-2 text-xs text-slate-300">task_id: {t.task_id}</div>
+                <div className="mt-2 text-xs text-slate-300">
+                  task_id: {t.task_id}
+                </div>
               </button>
             ))}
           </div>
         )}
       </Card>
 
-      <Card title="Agentic Workflow" subtitle={taskId || "Pick a task to generate plan"} className="lg:col-span-2">
+      <Card
+        title="Agentic Workflow"
+        subtitle={taskId || "Pick a task to generate plan"}
+        className="lg:col-span-2"
+      >
         {!taskId ? (
-          <div className="text-sm text-slate-300">Select a task to generate a guided workflow.</div>
+          <div className="text-sm text-slate-300">
+            Select a task to generate a guided workflow.
+          </div>
         ) : plan.isLoading ? (
           <div className="text-sm text-slate-300">Generating workflow...</div>
         ) : plan.isError ? (
@@ -101,7 +124,10 @@ export function LibraryPage() {
         ) : (
           <div className="space-y-3">
             {(plan.data?.plan ?? []).map((p) => (
-              <div key={p.step} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div
+                key={p.step}
+                className="rounded-xl border border-white/10 bg-white/5 p-3"
+              >
                 <div className="flex items-center justify-between text-xs text-slate-300">
                   <span>step {p.step}</span>
                   <span>{p.tool}</span>
@@ -118,4 +144,3 @@ export function LibraryPage() {
     </div>
   );
 }
-

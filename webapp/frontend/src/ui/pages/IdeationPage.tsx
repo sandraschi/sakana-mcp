@@ -23,8 +23,8 @@ export function IdeationPage() {
         codebase_hint: codebaseHint || null,
         model,
         max_num_generations: maxNum,
-        num_reflections: reflections
-      })
+        num_reflections: reflections,
+      }),
   });
 
   return (
@@ -35,6 +35,7 @@ export function IdeationPage() {
         className="lg:col-span-2"
         right={
           <button
+            type="button"
             className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200 hover:bg-amber-400/15"
             onClick={() => ideate.mutate()}
             disabled={ideate.isPending}
@@ -102,7 +103,9 @@ export function IdeationPage() {
 
       <Card title="Hypotheses" subtitle="Top 5" className="lg:col-span-3">
         {!ideate.data ? (
-          <div className="text-sm text-slate-300">Run ideation to populate hypotheses.</div>
+          <div className="text-sm text-slate-300">
+            Run ideation to populate hypotheses.
+          </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-300">
@@ -129,4 +132,3 @@ export function IdeationPage() {
     </div>
   );
 }
-

@@ -23,8 +23,8 @@ export function ExecutePage() {
         ideas_file: ideasFile || null,
         idea_idx: ideaIdx,
         num_workers: numWorkers,
-        max_debug_depth: maxDebugDepth
-      })
+        max_debug_depth: maxDebugDepth,
+      }),
   });
 
   return (
@@ -35,6 +35,7 @@ export function ExecutePage() {
         className="lg:col-span-2"
         right={
           <button
+            type="button"
             className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-400/15"
             onClick={() => exec.mutate()}
             disabled={exec.isPending}
@@ -90,8 +91,8 @@ export function ExecutePage() {
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
-            This triggers Docker Compose `scientist-executor`. Ensure Docker is running and NVIDIA
-            container runtime is configured.
+            This triggers Docker Compose `scientist-executor`. Ensure Docker is
+            running and NVIDIA container runtime is configured.
           </div>
 
           {exec.isError ? (
@@ -102,9 +103,15 @@ export function ExecutePage() {
         </div>
       </Card>
 
-      <Card title="Result" subtitle="Runtime config + logs" className="lg:col-span-3">
+      <Card
+        title="Result"
+        subtitle="Runtime config + logs"
+        className="lg:col-span-3"
+      >
         {!exec.data ? (
-          <div className="text-sm text-slate-300">Run execute to generate logs and config.</div>
+          <div className="text-sm text-slate-300">
+            Run execute to generate logs and config.
+          </div>
         ) : (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -120,15 +127,21 @@ export function ExecutePage() {
 
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="text-xs text-slate-300">runtime_config</div>
-              <div className="break-all text-slate-100">{exec.data.runtime_config}</div>
+              <div className="break-all text-slate-100">
+                {exec.data.runtime_config}
+              </div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="text-xs text-slate-300">stdout_log</div>
-              <div className="break-all text-slate-100">{exec.data.stdout_log}</div>
+              <div className="break-all text-slate-100">
+                {exec.data.stdout_log}
+              </div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="text-xs text-slate-300">stderr_log</div>
-              <div className="break-all text-slate-100">{exec.data.stderr_log}</div>
+              <div className="break-all text-slate-100">
+                {exec.data.stderr_log}
+              </div>
             </div>
           </div>
         )}
@@ -136,4 +149,3 @@ export function ExecutePage() {
     </div>
   );
 }
-

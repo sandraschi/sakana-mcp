@@ -1,15 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import FloatingChat from "./components/FloatingChat";
 import { AppLayout } from "./layout/AppLayout";
 import { DashboardPage } from "./pages/DashboardPage";
-import { IdeationPage } from "./pages/IdeationPage";
 import { ExecutePage } from "./pages/ExecutePage";
-import { StatusPage } from "./pages/StatusPage";
-import { ReviewPage } from "./pages/ReviewPage";
-import { VaultPage } from "./pages/VaultPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { LogsPage } from "./pages/LogsPage";
+import { IdeationPage } from "./pages/IdeationPage";
 import { LibraryPage } from "./pages/LibraryPage";
-import FloatingChat from "./components/FloatingChat";
+import { LogsPage } from "./pages/LogsPage";
+import { ReviewPage } from "./pages/ReviewPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { StatusPage } from "./pages/StatusPage";
+import { VaultPage } from "./pages/VaultPage";
 
 export function App() {
   return (
@@ -30,4 +30,3 @@ export function App() {
     </AppLayout>
   );
 }
-

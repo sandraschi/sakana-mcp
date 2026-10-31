@@ -12,7 +12,7 @@ type Health = {
 export function SettingsPage() {
   const health = useQuery({
     queryKey: ["health"],
-    queryFn: () => apiGet<Health>("/api/health")
+    queryFn: () => apiGet<Health>("/api/health"),
   });
 
   return (
@@ -26,15 +26,21 @@ export function SettingsPage() {
           <div className="space-y-2 text-xs text-slate-200">
             <div className="flex justify-between gap-3">
               <span className="text-slate-300">repo_root</span>
-              <span className="truncate text-right">{health.data?.repo_root}</span>
+              <span className="truncate text-right">
+                {health.data?.repo_root}
+              </span>
             </div>
             <div className="flex justify-between gap-3">
               <span className="text-slate-300">research_vault</span>
-              <span className="truncate text-right">{health.data?.research_vault}</span>
+              <span className="truncate text-right">
+                {health.data?.research_vault}
+              </span>
             </div>
             <div className="flex justify-between gap-3">
               <span className="text-slate-300">ai_scientist_v2</span>
-              <span className="truncate text-right">{health.data?.ai_scientist_v2}</span>
+              <span className="truncate text-right">
+                {health.data?.ai_scientist_v2}
+              </span>
             </div>
           </div>
         )}
@@ -44,15 +50,21 @@ export function SettingsPage() {
         <div className="space-y-2 text-sm text-slate-200">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="text-xs text-slate-300">GEMINI_API_KEY</div>
-            <div className="text-xs text-slate-400">required for Gemini-backed ideation/review</div>
+            <div className="text-xs text-slate-400">
+              required for Gemini-backed ideation/review
+            </div>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="text-xs text-slate-300">S2_API_KEY</div>
-            <div className="text-xs text-slate-400">Semantic Scholar throughput</div>
+            <div className="text-xs text-slate-400">
+              Semantic Scholar throughput
+            </div>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="text-xs text-slate-300">RESEARCH_VAULT_PATH</div>
-            <div className="text-xs text-slate-400">defaults to repo research_vault</div>
+            <div className="text-xs text-slate-400">
+              defaults to repo research_vault
+            </div>
           </div>
         </div>
       </Card>
@@ -70,4 +82,3 @@ export function SettingsPage() {
     </div>
   );
 }
-

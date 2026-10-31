@@ -11,9 +11,16 @@ type Status = {
     docker_daemon_reachable: boolean;
     compose_file_exists: boolean;
     required_services: string[];
-    service_status: Record<string, { present: boolean; running: boolean; state: string }>;
+    service_status: Record<
+      string,
+      { present: boolean; running: boolean; state: string }
+    >;
   };
-  tree_health: { good_nodes: number; buggy_nodes: number; ratio_good_to_buggy: number | null };
+  tree_health: {
+    good_nodes: number;
+    buggy_nodes: number;
+    ratio_good_to_buggy: number | null;
+  };
   stages: Array<{
     stage: string;
     total_nodes: number;
@@ -29,31 +36,42 @@ export function StatusPage() {
   const q = useQuery({
     queryKey: ["status"],
     queryFn: () => apiGet<Status>("/api/status"),
-    refetchInterval: 2000
+    refetchInterval: 2000,
   });
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-      <Card title="Status" subtitle="Tree health + stages" className="lg:col-span-2">
+      <Card
+        title="Status"
+        subtitle="Tree health + stages"
+        className="lg:col-span-2"
+      >
         {q.isLoading ? (
           <div className="text-sm text-slate-300">Loading...</div>
         ) : q.isError ? (
           <div className="text-sm text-red-300">{String(q.error)}</div>
         ) : (
           <div className="space-y-3">
-            <div className="text-xs text-slate-300">vault: {q.data?.research_vault}</div>
+            <div className="text-xs text-slate-300">
+              vault: {q.data?.research_vault}
+            </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-2 text-xs text-slate-300">
-              mode: {q.data?.runtime.mode === "live" ? "LIVE" : "FALLBACK [MOCK]"} -{" "}
+              mode:{" "}
+              {q.data?.runtime.mode === "live" ? "LIVE" : "FALLBACK [MOCK]"} -{" "}
               {q.data?.runtime.reason}
             </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="text-slate-300">good</div>
-                <div className="text-lg font-semibold">{q.data?.tree_health.good_nodes}</div>
+                <div className="text-lg font-semibold">
+                  {q.data?.tree_health.good_nodes}
+                </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="text-slate-300">buggy</div>
-                <div className="text-lg font-semibold">{q.data?.tree_health.buggy_nodes}</div>
+                <div className="text-lg font-semibold">
+                  {q.data?.tree_health.buggy_nodes}
+                </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="text-slate-300">ratio</div>
@@ -69,22 +87,37 @@ export function StatusPage() {
         )}
       </Card>
 
-      <Card title="Stages + Docker" subtitle="Tree and container readiness" className="lg:col-span-3">
+      <Card
+        title="Stages + Docker"
+        subtitle="Tree and container readiness"
+        className="lg:col-span-3"
+      >
         <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
-            docker cli: {q.data?.docker.docker_cli_available ? "installed" : "missing"}
+            docker cli:{" "}
+            {q.data?.docker.docker_cli_available ? "installed" : "missing"}
           </div>
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
-            daemon: {q.data?.docker.docker_daemon_reachable ? "reachable" : "unreachable"}
+            daemon:{" "}
+            {q.data?.docker.docker_daemon_reachable
+              ? "reachable"
+              : "unreachable"}
           </div>
         </div>
         <div className="mb-3 space-y-2">
           {(q.data?.docker.required_services ?? []).map((name) => {
             const info = q.data?.docker.service_status?.[name];
             return (
-              <div key={name} className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+              <div
+                key={name}
+                className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs"
+              >
                 <span className="font-semibold">{name}</span>:{" "}
-                {info?.present ? (info.running ? "running" : `not running (${info.state})`) : "not created"}
+                {info?.present
+                  ? info.running
+                    ? "running"
+                    : `not running (${info.state})`
+                  : "not created"}
               </div>
             );
           })}
@@ -95,30 +128,40 @@ export function StatusPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {q.data.stages.map((s, idx) => (
+            {q.data.stages.map((s) => (
               <div
-                key={`${s.stage}-${idx}`}
+                key={s.path || s.stage}
                 className="rounded-2xl border border-white/10 bg-white/5 p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm font-semibold">{s.stage}</div>
-                  <div className="text-xs text-slate-300">best_metric: {s.best_metric ?? "—"}</div>
+                  <div className="text-xs text-slate-300">
+                    best_metric: {s.best_metric ?? "—"}
+                  </div>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                   <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <div className="text-slate-300">total</div>
-                    <div className="text-base font-semibold">{s.total_nodes}</div>
+                    <div className="text-base font-semibold">
+                      {s.total_nodes}
+                    </div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <div className="text-slate-300">good</div>
-                    <div className="text-base font-semibold">{s.good_nodes}</div>
+                    <div className="text-base font-semibold">
+                      {s.good_nodes}
+                    </div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <div className="text-slate-300">buggy</div>
-                    <div className="text-base font-semibold">{s.buggy_nodes}</div>
+                    <div className="text-base font-semibold">
+                      {s.buggy_nodes}
+                    </div>
                   </div>
                 </div>
-                <div className="mt-2 break-all text-xs text-slate-400">{s.path}</div>
+                <div className="mt-2 break-all text-xs text-slate-400">
+                  {s.path}
+                </div>
               </div>
             ))}
           </div>
@@ -127,4 +170,3 @@ export function StatusPage() {
     </div>
   );
 }
-
