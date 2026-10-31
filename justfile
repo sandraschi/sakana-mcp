@@ -27,8 +27,9 @@ lint:
 fix:
     uv run ruff check . --fix --unsafe-fixes; uv run ruff format .; cd "{{justfile_directory()}}\webapp\frontend"; npx @biomejs/biome check --write .
 
-# Typecheck: tsc for the frontend (pyright is not in dev extras yet — see issue)
+# Typecheck: mypy for the server, tsc for the frontend
 check:
+    uv run mypy src/
     cd "{{justfile_directory()}}\webapp\frontend"; npx tsc --noEmit
 
 # --- Hardening ---
@@ -49,7 +50,7 @@ test:
 
 # Run e2e Playwright tests
 e2e:
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\Dev\repos\mcp-central-docs\scripts\playwright-audit.ps1" -RepoPath "{{justfile_directory()}}"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\..\mcp-central-docs\scripts\playwright-audit.ps1" -RepoPath "{{justfile_directory()}}"
 
 # Pre-Tauri browser walk (requires running stack: just serve first)
 cua-webapp-test:

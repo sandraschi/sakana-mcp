@@ -33,6 +33,12 @@ MCP server that wraps Sakana AI Scientist v2 so Cursor can act as a research dir
 - `research_library`: browse built-in + custom sample research missions
 - `research_workflow_plan`: generate guided agentic step plan for a selected task
 
+## Stack
+
+- Backend: Python 3.12+, FastMCP 3.4.5 (stdio), FastAPI + uvicorn (dashboard `:10863`), pydantic v2, httpx, ruff + mypy gates, pytest smoke suite
+- Frontend: React 18 + Vite 5 + TailwindCSS 3 + TanStack Query + React Router (dashboard `:10862`), TypeScript strict, Biome 2.4 gate, Playwright e2e
+- Runtime: Docker Compose (`sakana-mcp` + GPU `scientist-executor`), Tauri shell (`native/`), MCPB bundle via fleet shim (`just mcpb-pack`)
+
 ## Research Warehousing
 
 All major events are appended to warehouse manifests under:

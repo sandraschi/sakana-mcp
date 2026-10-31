@@ -21,6 +21,15 @@ from sakana_mcp.warehouse import append_manifest, ensure_warehouse
 logger = logging.getLogger("sakana-mcp")
 
 
+def _prompt_text(name: str) -> str:
+    path = _REPO_ROOT / "prompts" / name
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        logger.warning("sakana-mcp: prompt file missing: %s", path)
+        return ""
+
+
 def _env_required(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -211,7 +220,10 @@ async def llm_chat(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True})
+@mcp.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    output_schema={"type": "object"},
+)
 async def research_ideate(
     ctx: Context,
     *,
@@ -359,7 +371,10 @@ async def research_ideate(
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True})
+@mcp.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    output_schema={"type": "object"},
+)
 async def research_execute(
     ctx: Context,
     *,
@@ -504,7 +519,10 @@ async def research_execute(
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+@mcp.tool(
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    output_schema={"type": "object"},
+)
 async def research_status(ctx: Context) -> dict[str, Any]:
     """RESEARCH_STATUS - Monitor tree health from latest run artifacts.
 
@@ -539,7 +557,10 @@ async def research_status(ctx: Context) -> dict[str, Any]:
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True})
+@mcp.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    output_schema={"type": "object"},
+)
 async def research_review(
     ctx: Context,
     *,
@@ -597,7 +618,10 @@ async def research_review(
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+@mcp.tool(
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    output_schema={"type": "object"},
+)
 async def research_library(
     ctx: Context,
     *,
@@ -630,7 +654,10 @@ async def research_library(
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+@mcp.tool(
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    output_schema={"type": "object"},
+)
 async def research_workflow_plan(
     ctx: Context,
     *,
@@ -691,7 +718,10 @@ async def research_workflow_plan(
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False})
+@mcp.tool(
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    output_schema={"type": "object"},
+)
 async def sakana_help(ctx: Context) -> dict[str, Any]:
     """SAKANA_HELP - List available tools and the canonical research loop order.
 
@@ -728,7 +758,10 @@ async def sakana_help(ctx: Context) -> dict[str, Any]:
     }
 
 
-@mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False})
+@mcp.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+    output_schema={"type": "object"},
+)
 async def sakana_shutdown(
     ctx: Context,
     *,
@@ -752,6 +785,33 @@ async def sakana_shutdown(
     loop = asyncio.get_running_loop()
     loop.call_later(0.5, lambda: os._exit(0))
     return {"success": True, "message": "Sakana MCP server shutting down in ~500 ms."}
+
+
+@mcp.prompt(
+    name="research_director",
+    description="System prompt for the Research Director loop (ideate -> execute -> status -> review).",
+)
+def research_director_prompt() -> str:
+    """Research Director system prompt (served from prompts/ideation_system_prompt.md)."""
+    return _prompt_text("ideation_system_prompt.md")
+
+
+@mcp.prompt(
+    name="workflow_director",
+    description="Orchestration prompt for the end-to-end autonomous research loop.",
+)
+def workflow_director_prompt() -> str:
+    """Workflow Director orchestration prompt (served from prompts/workflow_director_prompt.md)."""
+    return _prompt_text("workflow_director_prompt.md")
+
+
+@mcp.prompt(
+    name="review_critic",
+    description="Critique prompt for manuscript figure/caption/reference review.",
+)
+def review_critic_prompt() -> str:
+    """Review Critic prompt (served from prompts/review_critic_prompt.md)."""
+    return _prompt_text("review_critic_prompt.md")
 
 
 def main() -> None:

@@ -314,6 +314,7 @@ def diagnostics() -> dict[str, Any]:
             "/api/llm/discover",
             "/api/llm/models",
             "/api/llm/chat",
+            "/api/llm/chat/stream",
             "/api/llm/onboarding",
             "/api/v1/diagnostics",
             "/api/shutdown",
@@ -381,6 +382,64 @@ def llm_models(provider: str = "ollama") -> dict[str, Any]:
     except Exception as exc:
         logger.warning("sakana webapp: llm models probe failed for %s: %s", provider, exc)
         return {"ok": True, "provider": provider, "models": ["gemma3:1b"], "live": False}
+
+
+class ChatRequest(BaseModel):
+    provider: str = "ollama"
+    model: str = "gemma3:1b"
+    prompt: str = ""
+
+
+@app.post("/api/llm/chat")
+def llm_chat(req: ChatRequest) -> dict[str, Any]:
+    """Backend chat proxy (non-streaming) — the ONLY path Chat uses. Keys never leave the server."""
+    import httpx
+
+    try:
+        resp = httpx.post(
+            "http://127.0.0.1:11434/api/generate",
+            json={"model": req.model, "prompt": req.prompt, "stream": False},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return {"ok": True, "response": resp.json().get("response", "")}
+    except Exception as exc:
+        logger.warning("sakana webapp: llm chat proxy failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"LLM backend unreachable: {exc}") from exc
+
+
+@app.post("/api/llm/chat/stream")
+def llm_chat_stream(req: ChatRequest) -> Any:
+    """Streaming chat proxy (SSE, OpenAI-style chunks) — the ONLY path Chat uses."""
+    import httpx
+    from fastapi.responses import StreamingResponse
+
+    def event_source() -> Any:
+        try:
+            with httpx.stream(
+                "POST",
+                "http://127.0.0.1:11434/api/generate",
+                json={"model": req.model, "prompt": req.prompt, "stream": True},
+                timeout=180.0,
+            ) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except Exception:
+                        logger.debug("sakana webapp: skipping malformed SSE chunk line")
+                        continue
+                    text = chunk.get("response", "")
+                    yield f"data: {json.dumps({'text': text, 'done': bool(chunk.get('done', False))})}\n\n"
+                    if chunk.get("done", False):
+                        break
+        except Exception as exc:
+            logger.warning("sakana webapp: llm chat stream failed: %s", exc)
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    return StreamingResponse(event_source(), media_type="text/event-stream")
 
 
 @app.get("/api/llm/onboarding")
